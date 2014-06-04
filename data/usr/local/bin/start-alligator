@@ -1,0 +1,11 @@
+#! /bin/bash
+
+NET_IP=$(/sbin/ifconfig | grep -Eo '([0-9]{1,3}\.){3}[0-9]{1,3}' | grep -Ev '^127|^255|255$|^0|\.0$')
+sed -i.bak -e "s/^\(alligator.host = \).*/\1${NET_IP}/" /opt/alligator/config/alligator.properties
+NET_PORT=$(grep ^alligator.port /opt/alligator/config/alligator.properties | sed -e 's/.*=\(.*\)$/\1/' -e 's/[[:blank:]]//g') ;
+
+echo "Starting CosyVerif server (Alligator) on http://${NET_IP}:${NET_PORT}/"
+cd /opt/alligator/
+/opt/alligator/alligatord start &
+
+exit 0

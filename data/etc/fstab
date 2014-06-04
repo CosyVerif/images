@@ -1,0 +1,4 @@
+# Using tmpfs in some mount points :
+tmpfs   /tmp                            tmpfs   nodev,nosuid    0       0
+tmpfs   /var/cache/apt/archives/        tmpfs   nodev,nosuid    0       0
+

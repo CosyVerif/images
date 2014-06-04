@@ -1,0 +1,49 @@
+#! /bin/bash
+
+/usr/share/docker.io/contrib/mkimage-debootstrap.sh \
+  -v minbase \
+  -a i386 \
+  -s \
+  saucisson/debian-32 \
+  stable \
+  http://ftp.fr.debian.org/debian
+
+/usr/share/docker.io/contrib/mkimage-debootstrap.sh \
+  -v minbase \
+  -a amd64 \
+  -s \
+  saucisson/debian-64 \
+  stable \
+  http://ftp.fr.debian.org/debian
+
+/usr/share/docker.io/contrib/mkimage-debootstrap.sh \
+  -v minbase \
+  -a i386 \
+  -s \
+  saucisson/debian-32 \
+  testing \
+  http://ftp.fr.debian.org/debian
+
+/usr/share/docker.io/contrib/mkimage-debootstrap.sh \
+  -v minbase \
+  -a amd64 \
+  -s \
+  saucisson/debian-64 \
+  testing \
+  http://ftp.fr.debian.org/debian
+
+/usr/share/docker.io/contrib/mkimage-debootstrap.sh \
+  -v minbase \
+  -a i386 \
+  -s \
+  saucisson/debian-32 \
+  unstable \
+  http://ftp.fr.debian.org/debian
+
+/usr/share/docker.io/contrib/mkimage-debootstrap.sh \
+  -v minbase \
+  -a amd64 \
+  -s \
+  saucisson/debian-64 \
+  unstable \
+  http://ftp.fr.debian.org/debian
