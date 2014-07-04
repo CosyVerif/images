@@ -1,49 +1,37 @@
 #! /bin/bash
 
-/usr/share/docker.io/contrib/mkimage-debootstrap.sh \
-  -v minbase \
-  -a i386 \
-  -s \
-  saucisson/debian-32 \
-  stable \
-  http://ftp.fr.debian.org/debian
+docker.io login
 
-/usr/share/docker.io/contrib/mkimage-debootstrap.sh \
-  -v minbase \
-  -a amd64 \
-  -s \
-  saucisson/debian-64 \
-  stable \
-  http://ftp.fr.debian.org/debian
+tmp=$(mktemp -d)
 
-/usr/share/docker.io/contrib/mkimage-debootstrap.sh \
-  -v minbase \
-  -a i386 \
-  -s \
-  saucisson/debian-32 \
-  testing \
-  http://ftp.fr.debian.org/debian
+for arch in amd64 # i386
+do
+  for version in testing # stable unstable
+  do
+    # Generate base image:
+    /usr/share/docker.io/contrib/mkimage-debootstrap.sh \
+      -v minbase \
+      -a ${arch} \
+      -s \
+     saucisson/debian-${arch} \
+     ${version} \
+     http://http.debian.net/debian
+    docker push "saucisson/debian-${arch}:${version}"
+    # Generate minimal image:
+    cp dockerfiles/with-minimal Dockerfile
+    name="saucisson/with-minimal-${arch}:${version}"
+    sed -i -e "s|BASE_IMAGE|${name}|" Dockerfile
+    docker.io build --tag ${name} .
+    container="with-minimal-${arch}-${version}"
+    docker.io run --name ${container} ${name} echo
+    docker.io export ${container} > ${tmp}/export.tar
+    docker.io rm ${container}
+    cat ${tmp}/export.tar | docker.io import - ${name}
+    docker push ${name}
+    rm -f Dockerfile
+  done
+done
 
-/usr/share/docker.io/contrib/mkimage-debootstrap.sh \
-  -v minbase \
-  -a amd64 \
-  -s \
-  saucisson/debian-64 \
-  testing \
-  http://ftp.fr.debian.org/debian
-
-/usr/share/docker.io/contrib/mkimage-debootstrap.sh \
-  -v minbase \
-  -a i386 \
-  -s \
-  saucisson/debian-32 \
-  unstable \
-  http://ftp.fr.debian.org/debian
-
-/usr/share/docker.io/contrib/mkimage-debootstrap.sh \
-  -v minbase \
-  -a amd64 \
-  -s \
-  saucisson/debian-64 \
-  unstable \
-  http://ftp.fr.debian.org/debian
+# Clean:
+docker.io rm $(docker.io ps -a -q)
+docker.io rmi $(docker.io images | grep "^<none>" | awk "{print $3}")
