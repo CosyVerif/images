@@ -1,4 +1,10 @@
-# Using tmpfs in some mount points :
-tmpfs   /tmp                            tmpfs   nodev,nosuid    0       0
-tmpfs   /var/cache/apt/archives/        tmpfs   nodev,nosuid    0       0
+# Real partitions:
+/dev/sda1  /boot                  ext2    defaults                0       1
+/dev/sda2  /                      btrfs   defaults                0       1
 
+# Using tmpfs in some mount points:
+tmpfs   /tmp                      tmpfs   nodev,nosuid,size=1G    0       0
+tmpfs   /run                      tmpfs   nodev,nosuid            0       0
+tmpfs   /var/cache/apt/archives/  tmpfs   nodev,nosuid            0       0
+tmpfs   /var/lib/apt/lists/       tmpfs   nodev,nosuid            0       0
+tmpfs   /var/cache/apt/           tmpfs   nodev,nosuid            0       0
