@@ -1,0 +1,23 @@
+FROM BASE_IMAGE
+MAINTAINER alban.linard@lsv.ens-cachan.fr
+
+# Install custom kernel:
+RUN apt-get install -y linux-source fakeroot kernel-package
+RUN mkdir /tmp/kernel
+RUN tar -xf /usr/src/linux-source*.tar.* -C /tmp/kernel --strip-components=1
+ADD ./data/kernel/francis.config /tmp/kernel/.config
+RUN cd /tmp/kernel && yes "" | make oldconfig
+RUN cd /tmp/kernel && fakeroot make-kpkg --append-to-version -vbox --initrd kernel-image
+RUN cd /tmp/ && dpkg -i linux-image-*.deb
+RUN apt-get purge -y linux-source fakeroot kernel-package
+
+# Install Bootloader:
+RUN apt-get install -y extlinux syslinux-common
+
+# Clean:
+RUN rm -rf /tmp/*
+RUN apt-get purge -y perl $(dpkg --get-selections | grep install | grep -v deinstall | grep "dev" | cut -f1)
+RUN apt-get autoremove -y
+RUN apt-get clean
+RUN rm -rf /var/lib/apt/lists/*
+RUN rm -rf /var/cache/debconf/*

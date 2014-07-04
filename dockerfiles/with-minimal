@@ -1,0 +1,34 @@
+FROM BASE_IMAGE
+MAINTAINER alban.linard@lsv.ens-cachan.fr
+
+# Update Debian package list:
+RUN apt-get update -y
+
+# Set to non interactive mode, and install missing package:
+ENV DEBIAN_FRONTEND noninteractive
+RUN apt-get install -y apt-utils
+
+# Configure APT to avoid installing recommended or suggested dependencies.
+# Also try to save as much disk space as possible.
+ADD ./data/etc/apt/apt.conf.d/02reduce /etc/apt/apt.conf.d/02reduce
+
+# Avoid installing some documentation files with dpkg:
+RUN apt-get install -y locales
+ADD ./data/etc/dpkg/dpkg.cfg.d/01_nodoc /etc/dpkg/dpkg.cfg.d/01_nodoc
+ADD ./data/etc/locale.gen /etc/locale.gen
+RUN for package in $(dpkg --get-selections | grep install | grep -v deinstall | grep -v initscripts | cut -f1);\
+    do \
+      apt-get --reinstall install -y -f ${package}; \
+    done
+
+# Install fstab:
+ADD ./data/etc/fstab /etc/fstab
+
+# Clean:
+RUN rm -rf /tmp/*
+RUN apt-get purge -y perl $(dpkg --get-selections | grep install | grep -v deinstall | grep "dev" | cut -f1)
+RUN apt-get autoremove -y
+RUN apt-get clean
+RUN rm -rf /var/lib/apt/lists/*
+RUN rm -rf /var/cache/debconf/*
+
