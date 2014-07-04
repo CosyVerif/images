@@ -1,8 +1,8 @@
 #! /bin/bash
 
 docker.io login
-
 tmp=$(mktemp -d)
+container="temporary-container"
 
 for arch in amd64 # i386
 do
@@ -16,22 +16,26 @@ do
      saucisson/debian-${arch} \
      ${version} \
      http://http.debian.net/debian
-    docker push "saucisson/debian-${arch}:${version}"
+    name="saucisson/debian:${version}-${arch}"
+    docker.io run --name ${container} "saucisson/debian-${arch}:${version}" echo
+    docker.io export ${container} | docker.io import - ${name}
+    docker.io rm ${container}
+    docker push ${name}
+
     # Generate minimal image:
     cp dockerfiles/with-minimal Dockerfile
-    name="saucisson/with-minimal-${arch}:${version}"
-    sed -i -e "s|BASE_IMAGE|${name}|" Dockerfile
+    from="saucisson/debian:${version}-${arch}"
+    name="saucisson/with-minimal:${version}-${arch}"
+    sed -i -e "s|BASE_IMAGE|${from}|" Dockerfile
     docker.io build --tag ${name} .
-    container="with-minimal-${arch}-${version}"
     docker.io run --name ${container} ${name} echo
-    docker.io export ${container} > ${tmp}/export.tar
+    docker.io export ${container} | docker.io import - ${name}
     docker.io rm ${container}
-    cat ${tmp}/export.tar | docker.io import - ${name}
     docker push ${name}
     rm -f Dockerfile
   done
 done
 
 # Clean:
-docker.io rm $(docker.io ps -a -q)
-docker.io rmi $(docker.io images | grep "^<none>" | awk "{print $3}")
+docker.io rm $(docker.io ps -a -q) 2> /dev/null
+docker.io rmi $(docker.io images | grep "^<none>" | awk "{print $3}") 2> /dev/null
