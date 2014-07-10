@@ -1,6 +1,5 @@
 # Real partitions:
-/dev/sda1  /boot                  ext2    defaults                0       1
-/dev/sda2  /                      btrfs   defaults                0       1
+/dev/sda1	/	ext4	defaults	0	1
 
 # Using tmpfs in some mount points:
 tmpfs   /tmp                      tmpfs   nodev,nosuid,size=1G    0       0
