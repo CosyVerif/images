@@ -1,0 +1,26 @@
+#!/bin/bash
+
+
+jenkins_master_key='ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC9DDbdG/IIJqSVvktztZwj6Rj43T+j/pCXPgGBrgajue7hPkaClrwZNSJi/PVQv3DdHx8Gw5U9+13xviZ2LyS/c5RxX7PHcOBVIfbUiOq/2WjG1bg0WdewATqBZNS9Es2Tn/57f6qs1muCMRl4VsABkSldUcCwLHlJo2WFpRyRazM5BY/l4g9gx5azDTeK4GRjHt9EMhQv9/zCuPVgMo/iUzE/7QvjQ0ig6VPYrK0bAvyuHtAydsC5PQQOPIuJcajvjMGQjfxIDRkvevJSutuf5WlWxkjg/kE0rufCKAPSFKHT/d9l6R6oNsTn+CXTwoGaWSxJjfM0pNrkjFG7kxP/ jenkins@ci'
+
+echo "FROM saucisson/with-kernel:testing-amd64" > Dockerfile
+
+# We get the needed programs for package building
+echo "RUN wget -O - http://132.227.76.2:4142/gpgkey | apt-key add -" >> Dockerfile
+echo "RUN echo deb http://132.227.76.2:4142/debian wheezy-unstable/ >> /etc/apt/sources.list" >> Dockerfile
+echo "RUN echo deb http://ftp.debian.org/debian jessie main >> /etc/apt/sources.list" >> Dockerfile
+echo "RUN apt-get update" >> Dockerfile
+echo "RUN apt-get install adduser openssh-client docker.io default-jre buildeb" >> Dockerfile
+
+# Creating jenkins user
+echo "RUN adduser --disabled-password jenkins" >> Dockerfile
+echo "RUN adduser jenkins docker" >> Dockerfile
+
+# Configuring docker (dns)
+
+echo "USER jenkins" >> Dockerfile
+
+# Configuring jenkins user account
+echo "RUN mkdir -p /home/jenkins/.ssh" >> Dockerfile
+echo "RUN echo $jenkins_master_key > /home/jenkins/.ssh/authorized_keys" >> Dockerfile
+echo "RUN ssh-keygen -P "" -f /home/jenkins/.ssh/id_rsa" >> Dockerfile
