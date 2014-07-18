@@ -1,0 +1,178 @@
+#! /bin/bash
+
+start=`date -R`
+leaveunclean=0;
+buildonly=0;
+packonly=0;
+while getopts :"d:c:pbh" OPT; do
+    case $OPT in
+	d)
+	    export MAKEFILEDIR=`echo $OPTARG | perl -n -e 'if (m#^(.+)/$#) {print $1;} else {print;}'`
+	    ;;
+	c)
+	    export CONFIGFILE=$OPTARG
+	    ;;
+	b)
+	    buildonly=1;;
+	p)
+	    packonly=1;;
+	h)
+	    echo "Usage: `basename $0`: [-bph] [-d directory] [-c file]"
+	    env echo -e "\nOPTIONS:"
+	    env echo -e "  -d <makefile_dir>\tAllows you to indicate the path \
+of the directory"
+	    env echo -e "\t\t\t  that contains the makefile of your project."
+	    env echo -e "  -c <config_file>\tAllows you to indicate where your \
+configuration file is."
+	    env echo -e "  -b\t\t\tOnly perform build operations. Stop before \
+building the packages and uploading them. Incompatible with -p."
+	    env echo -e "  -p\t\t\tOnly perform packaging operations. A preliminary build will not be performed to check dependencies. Incompatible with -b."
+	    env echo -e "  -h\t\t\tPrint this help"
+	    exit 0;
+	    ;;
+	*)
+	    echo "Usage: `basename $0`: [-bh] [-d directory] [-c file]"
+	    exit 1;
+	    ;;
+    esac
+done
+shift $(( OPTIND - 1 ))
+OPTIND=1
+
+if [ $packonly -eq 0 ]; then
+    /home/jenkins/docker_build -c $CONFIGFILE -d $MAKEFILEDIR
+    if [ $? -ne 0 ]; then
+	exit 1;
+    fi
+fi
+
+if [ $buildonly -eq 1 ]; then
+    echo "Started at : $start"
+    echo "Ended at `date -R`"
+    exit 0
+fi
+
+#images="saucisson/with-minimal:testing-amd64 saucisson/with-minimal:testing-i386"
+images="mbittan/buildeb-minimal:testing-amd64 mbittan/buildeb-minimal:testing-i386"
+i=0;
+
+# add current dir to base images in /build
+for im in $images
+do
+    tags[$i]=`echo $im | cut -d':' -f2 | cut -d'-' -f1`
+    echo "FROM $im" > Dockerfile
+    echo "RUN mkdir /build" >> Dockerfile
+    echo "ADD . /build" >> Dockerfile
+    docker build --no-cache -t build$i .
+    if [ $? -ne 0 ]; then
+	exit 1;
+    fi
+    rm -f Dockerfile$i
+    rm -f build$i.log
+    i=$(( i + 1 ))
+done
+
+# parse configuration file
+eval `/usr/share/buildeb/config_parser $CONFIGFILE $MAKEFILEDIR`
+
+# create each dockerfile that will generate Debian packages
+for j in `seq 0 $(( i - 1 ))`
+do
+    /home/jenkins/create_dockerfiles.pl $j ${tags[$j]}
+    if [ $? -ne 0 ]; then
+	exit 2;
+    fi
+done
+
+# build packages
+for j in `seq 0 $(( i - 1 ))`
+do
+    docker build --no-cache -t build$j - < Dockerfile$j 2>&1 | tee build$j.log &
+    build_pids[$j]=$!
+done
+
+# wait for all docker builds to end
+for j in `seq 0 $(( i - 1 ))`
+do
+    wait ${build_pids[$j]}
+    if [ $? -ne 0 ]; then
+	exit 3;
+    fi
+done
+
+# get files back from dockers
+for j in `seq 0 $(( i - 1 ))`
+do
+    echo "sudo docker run build$j ls $MAKEFILEDIR/.."
+    files=`docker run build$j ls $MAKEFILEDIR/..`
+    if [ $? -ne 0 ]; then
+	exit 4;
+    fi
+    echo 'echo $files'" | sed -e 's/ /\n/g' | grep -E "'.*\.deb$'
+    debs=`echo $files | sed -e 's/ /\n/g' | grep -E .*\.deb$`
+    echo 'echo $files'" | sed -e 's/ /\n/g' | grep -E "'.*\.dsc$'
+    dsc=`echo $files | sed -e 's/ /\n/g' | grep -E .*\.dsc$`
+    echo 'echo $files'" | sed -e 's/ /\n/g' | grep -E "'.*\.orig\.tar\..*$'
+    tarball=`echo $files | sed -e 's/ /\n/g' | grep -E .*\.orig\.tar\..*$`
+    echo 'echo $files'" | sed -e 's/ /\n/g' | grep -E "'.*\.debian\.tar\..*$'
+    debiantar=`echo $files | sed -e 's/ /\n/g' | grep -E .*\.debian\.tar\..*$`
+    echo 'echo $files'" | sed -e 's/ /\n/g' | grep -E "'.*\.changes$'
+    changes=`echo $files | sed -e 's/ /\n/g' | grep -E .*\.changes$`
+    echo "docker run -d build$j /bin/sh -c \"while true; do sleep 1; done;\""
+    container=`docker run -d build$j /bin/sh -c "while true; do sleep 1; done;"`
+    if [ $? -ne 0 ]; then
+	exit 5;
+    fi
+    for debian in $debs; do
+	echo "docker cp $container:/build/$MAKEFILEDIR/../$debian ."
+	docker cp $container:/build/$MAKEFILEDIR/../$debian .
+	if [ $? -ne 0 ]; then
+	    exit 6;
+	fi
+    done
+    for src in $dsc; do
+	echo "docker cp $container:/build/$MAKEFILEDIR/../$src ."
+	docker cp $container:/build/$MAKEFILEDIR/../$src .
+	if [ $? -ne 0 ]; then
+	    exit 6;
+	fi
+    done
+    echo "docker cp $container:/build/$MAKEFILEDIR/../$tarball ."
+    docker cp $container:/build/$MAKEFILEDIR/../$tarball .
+    if [ $? -ne 0 ]; then
+	exit 6;
+    fi
+    echo "docker cp $container:/build/$MAKEFILEDIR/../$debiantar ."
+    docker cp $container:/build/$MAKEFILEDIR/../$debiantar .
+    if [ $? -ne 0 ]; then
+	exit 6;
+    fi
+    echo "docker cp $container:/build/$MAKEFILEDIR/../$changes ."
+    docker cp $container:/build/$MAKEFILEDIR/../$changes .
+    if [ $? -ne 0 ]; then
+	exit 6;
+    fi
+    echo "docker kill $container"
+    docker kill $container
+    if [ $? -ne 0 ]; then
+	exit 7;
+    fi
+done
+
+#send them to repo
+echo "scp -P 3333 *.deb *.dsc *.orig.tar.* *.debian.tar.* *.changes root@132.227.76.2:~"
+scp -P 3333 *.deb *.dsc *.orig.tar.* *.debian.tar.* *.changes root@132.227.76.2:~
+if [ $? -ne 0 ]; then
+    exit 8;
+fi
+echo "ssh -p 3333 root@132.227.76.2 '~/upload.sh'"
+ssh -p 3333 root@132.227.76.2 '~/upload.sh'
+if [ $? -ne 0 ]; then
+    exit 9;
+fi
+
+/home/jenkins/delete_containers.sh
+/home/jenkins/delete_images.sh
+
+echo "Started at : $start"
+echo "Ended at `date -R`"

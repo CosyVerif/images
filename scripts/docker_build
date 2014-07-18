@@ -1,0 +1,81 @@
+#! /bin/bash
+
+while getopts "c:d:h" OPT; do
+    case $OPT in
+	c)
+	    CONFIGFILE="$OPTARG"
+	    ;;
+	d)
+	    MAKEFILEDIR=`echo $OPTARG | perl -n -e 'if (m#^(.+)/$#) {print $1;} else {print;}'`
+	    ;;
+	h)
+	    echo "Usage: `basename $0`: [-h] -d directory -c file"
+	    ;;
+	*)
+	    echo "Usage: `basename $0` -c config_file -d makefiledir"
+	    exit 2
+    esac
+done
+shift $(( $OPTIND - 1 ))
+OPTIND=1
+
+images="saucisson/with-minimal:testing-amd64"
+# saucisson/with-minimal:testing-i386"
+i=0
+
+eval `/usr/share/buildeb/config_parser $CONFIGFILE $MAKEFILEDIR`
+
+for im in $images; do
+    echo "FROM $im" > Dockerfile
+    echo "RUN mkdir /build" >> Dockerfile
+    echo "ADD . /build" >> Dockerfile
+    docker build --no-cache -t prebuild$i .
+    rm -f Dockerfile$i
+    i=$(( i + 1 ))
+done
+
+i=0
+for im in $images; do
+    echo "FROM prebuild$i" > Dockerfile$i
+    #install build dependencies
+    depends=`echo $BUILDDEPENDS | awk '{ gsub(",","",$0); print $0; }'`
+    echo "RUN apt-get update -y" >> Dockerfile$i
+    echo "RUN apt-get install -y $depends" >> Dockerfile$i
+    # start building
+    echo "WORKDIR /build/$MAKEFILEDIR" >> Dockerfile$i
+    IFS=';' read -a commands <<< "$BEFOREBUILD"
+    for cmd in "${commands[@]}"
+    do
+	echo "RUN $cmd" >> Dockerfile$i
+    done
+    echo "RUN make" >> Dockerfile$i
+    # run tools to store before install state
+    #echo "RUN apt-get install -y tree mawk diffutils" >> Dockerfile$i
+    #echo "RUN tree -aifl -o /build/system-tree /bin /etc /home /lib /lib64 /usr /var" >> Dockerfile$i
+    #echo "RUN awk '{ "'if ($0 ~ /^\/.+$/) gsub(/ -> .+$/,//,$0); print $0'" }' /build/system-tree > /build/old-tree" >> Dockerfile$i
+    # run install
+    #echo "RUN make install" >> Dockerfile$i
+    # run tools to compare before/after install
+    #echo "RUN rm /build/system-tree" >> Dockerfile$i
+    #echo "RUN tree -aifl -o /build/system-tree /bin /etc /home /lib /lib64 /usr /var" >> Dockerfile$i
+    #echo "RUN awk '{ "'if ($0 ~ /^\/.+$/) gsub(/ -> .+$/,//,$0); print $0;'" }' /build/system-tree > /build/new-tree" >> Dockerfile$i
+    #echo "RUN touch /build/new-files$i" >> Dockerfile$i
+    #echo "RUN diff --ignore-blank-lines -b --ignore-case --old-line-format='' --new-line-format='%L' --unchanged-line-format='' /build/old-tree /build/new-tree > /build/new-files$i || echo" >> Dockerfile$i
+    i=$(( i + 1 ))
+done
+
+# builds
+for j in `seq 0 $(( i - 1 ))`; do
+    docker build --no-cache -t prebuild$j - < Dockerfile$j &
+done
+
+# wait for ending
+for j in `seq 0 $(( i - 1 ))`; do
+    wait
+done
+
+# get each new-files file
+#for j in `seq 0 $(( i - 1 ))`; do
+#    container=`docker run -d prebuild$j /bin/sh -c "while true; do sleep 1; done;"`
+#    docker cp $container:/build/new-files$j .
+#done
