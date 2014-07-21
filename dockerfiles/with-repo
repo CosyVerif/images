@@ -1,0 +1,23 @@
+FROM BASEIMAGE
+#FROM saucisson/with-kernel:testing-i386
+MAINTAINER redha.gouicem@gmail.com
+
+# Install needed tools to manage a Debian repository
+RUN echo 'deb REPOSITORY SUITE' >> /etc/apt/sources.list
+#RUN echo 'deb http://cosyverif-debian.lip6.fr/ jessie-testing/' >> /etc/apt/sources.list
+RUN apt-get update
+RUN apt-get install -y --force-yes adduser gnupg devscripts dput coreutils repo-cosy mini-dinstall apache2
+
+# Create user repo
+RUN useradd -m -d /home/repo -s /bin/bash repo
+
+# Set user to repo
+USER repo
+
+# Add configuration files for dput and mini-dinstall
+ADD ./data/home/repo/.dput.cf /home/repo/.dput.cf
+ADD ./data/home/repo/.mini-dinstall.conf /home/repo/.mini-dinstall.conf
+
+# Create missing directories
+RUN mkdir -p /home/repo/debian/mini-dinstall/incoming
+RUN mkdir /home/repo/history

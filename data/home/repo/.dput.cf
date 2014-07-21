@@ -1,0 +1,6 @@
+[repo]
+fqdn = cosyverif-debian.lip6.fr
+method = local
+login = repo
+incoming = /home/repo/debian/mini-dinstall/incoming
+post_upload_command = mini-dinstall -b
