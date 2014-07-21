@@ -2,13 +2,17 @@
 
 use strict;
 
+# the repository and distribution where is located the buildeb package
+my$_REPO="http://cosyverif-debian.lip6.fr"
+my$_DIST="jessie-unstable"
+
 my $i=$ARGV[0];
 my$tag=$ARGV[1];
 open DOCK, ">Dockerfile$i" or die("$!");
 print DOCK "FROM build$i";
 print DOCK "RUN apt-get update";
-print DOCK "RUN echo deb http://132.227.76.2:4142/debian wheezy-unstable/ >> /etc/apt/sources.list";
-print DOCK "RUN wget -O - http://132.227.76.2:4142/gpgkey | apt-key add -";
+print DOCK "RUN echo deb $_REPO $_DIST/ >> /etc/apt/sources.list";
+print DOCK "RUN wget -O - $_REPO/gpgkey | apt-key add -";
 print DOCK 'RUN apt-get update';
 print DOCK 'RUN apt-get install -y --force-yes buildeb lsb-release';
 my $deps = $ENV{'BUILDDEPENDS'};

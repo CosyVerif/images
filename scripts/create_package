@@ -1,5 +1,7 @@
 #! /bin/bash
 
+_REPO=cosyverif@cosyverif-debian.lip6.fr
+
 start=`date -R`
 leaveunclean=0;
 buildonly=0;
@@ -78,7 +80,7 @@ eval `/usr/share/buildeb/config_parser $CONFIGFILE $MAKEFILEDIR`
 # create each dockerfile that will generate Debian packages
 for j in `seq 0 $(( i - 1 ))`
 do
-    /home/jenkins/create_dockerfiles.pl $j ${tags[$j]}
+    ~/create_dockerfiles.pl $j ${tags[$j]}
     if [ $? -ne 0 ]; then
 	exit 2;
     fi
@@ -160,19 +162,19 @@ do
 done
 
 #send them to repo
-echo "scp -P 3333 *.deb *.dsc *.orig.tar.* *.debian.tar.* *.changes root@132.227.76.2:~"
-scp -P 3333 *.deb *.dsc *.orig.tar.* *.debian.tar.* *.changes root@132.227.76.2:~
+echo "scp *.deb *.dsc *.orig.tar.* *.debian.tar.* *.changes $_REPO:~"
+scp -P 3333 *.deb *.dsc *.orig.tar.* *.debian.tar.* *.changes $_REPO:~
 if [ $? -ne 0 ]; then
     exit 8;
 fi
-echo "ssh -p 3333 root@132.227.76.2 '~/upload.sh'"
-ssh -p 3333 root@132.227.76.2 '~/upload.sh'
+echo "ssh $_REPO '~/upload.sh'"
+ssh $_REPO '~/upload.sh'
 if [ $? -ne 0 ]; then
     exit 9;
 fi
 
-/home/jenkins/delete_containers.sh
-/home/jenkins/delete_images.sh
+~/delete_containers.sh
+~/delete_images.sh
 
 echo "Started at : $start"
 echo "Ended at `date -R`"

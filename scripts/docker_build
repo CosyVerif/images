@@ -39,7 +39,7 @@ for im in $images; do
     echo "FROM prebuild$i" > Dockerfile$i
     #install build dependencies
     depends=`echo $BUILDDEPENDS | awk '{ gsub(",","",$0); print $0; }'`
-    echo "RUN apt-get update -y" >> Dockerfile$i
+    echo "RUN apt-get update" >> Dockerfile$i
     echo "RUN apt-get install -y $depends" >> Dockerfile$i
     # start building
     echo "WORKDIR /build/$MAKEFILEDIR" >> Dockerfile$i
