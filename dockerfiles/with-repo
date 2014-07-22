@@ -11,10 +11,17 @@ RUN apt-get install -y --force-yes adduser gnupg devscripts dput coreutils repo-
 # Create user repo
 RUN useradd -m -d /home/repo -s /bin/bash repo
 
+# Configure apache
+ADD ./data/etc/apache2/sites-available/repository /etc/apache2/sites-available/repository
+RUN a2dissite default
+RUN a2ensite repository
+
 # Set user to repo
 USER repo
 
-# Add configuration files for dput and mini-dinstall
+# Add configuration files for ssh, dput and mini-dinstall
+RUN mkdir -p /home/repo/.ssh
+ADD ./data/home/repo/.ssh/authorized_keys /home/repo/.ssh/authorized_keys
 ADD ./data/home/repo/.dput.cf /home/repo/.dput.cf
 ADD ./data/home/repo/.mini-dinstall.conf /home/repo/.mini-dinstall.conf
 
