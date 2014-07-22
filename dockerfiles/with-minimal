@@ -1,17 +1,6 @@
 FROM BASE_IMAGE
 MAINTAINER alban.linard@lsv.ens-cachan.fr
 
-# Update Debian package list:
-RUN apt-get update -y
-
-# Set to non interactive mode, and install missing package:
-ENV DEBIAN_FRONTEND noninteractive
-RUN apt-get install -y apt-utils
-
-# Configure APT to avoid installing recommended or suggested dependencies.
-# Also try to save as much disk space as possible.
-ADD ./data/etc/apt/apt.conf.d/02reduce /etc/apt/apt.conf.d/02reduce
-
 # Avoid installing some documentation files with dpkg:
 RUN apt-get install -y locales
 ADD ./data/etc/dpkg/dpkg.cfg.d/01_nodoc /etc/dpkg/dpkg.cfg.d/01_nodoc
