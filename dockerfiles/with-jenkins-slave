@@ -1,0 +1,26 @@
+FROM BASEIMAGE
+MAINTAINER redha.gouicem@gmail.com
+
+# install jre, buildeb, slave-cosy, docker
+RUN echo deb REPOSITORY SUITE >> /etc/apt/sources.list
+#RUN echo deb http://cosyverif-debian.lip6.fr/ jessie-testing/ >> /etc/apt/sources.list
+RUN apt-get update
+RUN apt-get install -y --force-yes default-jre buildeb slave-cosy
+RUN cp /etc/apt/sources.list /etc/apt/sources.list.tmp
+RUN echo deb http://http.debian.net/debian testing main >> /etc/apt/sources.list
+RUN apt-get update
+RUN apt-get install -y --force-yes docker.io
+RUN mv /etc/apt/sources.list.tmp /etc/apt/sources.list
+RUN ln -sf /usr/bin/docker.io /usr/local/bin/docker
+RUN apt-get update
+
+# create jenkins user, add in docker group
+RUN useradd -m -d /home/jenkins -s /bin/bash jenkins
+RUN groupadd docker || :
+RUN gpasswd -a jenkins docker
+
+# add ssh key of master
+
+
+# Set user to jenkins
+USER jenkins
