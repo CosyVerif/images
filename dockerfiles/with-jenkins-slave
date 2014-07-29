@@ -1,4 +1,4 @@
-FROM BASEIMAGE
+FROM BASE_IMAGE
 MAINTAINER redha.gouicem@gmail.com
 
 # install jre, buildeb, slave-cosy, docker
