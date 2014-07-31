@@ -11,6 +11,7 @@ ADD ./data/kernel/kernel-3.15.5-x86_64.config /usr/src/linux-3.15.7/.config
 RUN cd /usr/src/linux-3.15.7/ && make -j2
 RUN cp /usr/src/linux-3.15.7/arch/x86/boot/bzImage /boot/vmlinuz-3.15.7
 RUN ln -s /boot/vmlinuz-3.15.7 /vmlinuz
+RUN rm -rf /usr/src/linux-3.15.7*
 
 # Install Bootloader:
 RUN apt-get install -y extlinux syslinux-common
