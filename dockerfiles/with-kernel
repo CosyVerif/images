@@ -5,7 +5,7 @@ MAINTAINER alban.linard@lsv.ens-cachan.fr
 RUN apt-get install -y --force-yes udhcpc iproute2 wget gcc ca-certificates xz-utils make libc6-dev bc
 
 # Install custom kernel:
-RUN wget https://www.kernel.org/pub/linux/kernel/v3.x/linux-3.15.7.tar.xz -O /usr/src/
+RUN wget https://www.kernel.org/pub/linux/kernel/v3.x/linux-3.15.7.tar.xz -O /usr/src/linux-3.15.7.tar.xz
 RUN tar xf /usr/src/linux-3.15.7.tar.xz -C /usr/src/
 ADD ./data/kernel/kernel-3.15.5-x86_64.config /usr/src/linux-3.15.7/.config
 RUN cd /usr/src/linux-3.15.7/ && make -j2
