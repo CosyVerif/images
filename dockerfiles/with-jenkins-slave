@@ -19,8 +19,10 @@ RUN useradd -m -d /home/jenkins -s /bin/bash jenkins
 RUN groupadd docker || :
 RUN gpasswd -a jenkins docker
 
-# add ssh key of master
-
-
 # Set user to jenkins
 USER jenkins
+
+# add ssh key of master
+ADD ./data/home/repo/.ssh/authorized_keys /home/repo/.ssh/authorized_keys
+
+
