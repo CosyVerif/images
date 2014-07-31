@@ -1,12 +1,10 @@
 FROM BASEIMAGE
-#FROM saucisson/with-kernel:testing-i386
 MAINTAINER redha.gouicem@gmail.com
 
 # Install needed tools to manage a Debian repository
 RUN echo 'deb REPOSITORY SUITE' >> /etc/apt/sources.list
-#RUN echo 'deb http://cosyverif-debian.lip6.fr/ jessie-testing/' >> /etc/apt/sources.list
 RUN apt-get update
-RUN apt-get install -y --force-yes adduser gnupg devscripts dput coreutils repo-cosy mini-dinstall apache2
+RUN apt-get install -y --force-yes adduser gnupg devscripts dput coreutils repo-cosy mini-dinstall apache2 rng-tools
 
 # Create user repo
 RUN useradd -m -d /home/repo -s /bin/bash repo
@@ -25,6 +23,13 @@ ADD ./data/home/repo/.ssh/authorized_keys /home/repo/.ssh/authorized_keys
 ADD ./data/home/repo/.dput.cf /home/repo/.dput.cf
 ADD ./data/home/repo/.mini-dinstall.conf /home/repo/.mini-dinstall.conf
 
-# Create missing directories
+# Create missing directories for repository management
 RUN mkdir -p /home/repo/debian/mini-dinstall/incoming
 RUN mkdir /home/repo/history
+
+# Generate gpg key
+ADD ./data/home/repo/gpg-keygen.conf /home/repo/.gnupg/gpg-keygen.conf
+RUN rngd -f -r /dev/urandom &
+ENV rngd_pid $!
+RUN gpg --batch --gen-key /home/repo/.gnupg/gpg-keygen.conf
+RUN kill -9 $rgnd_pid
