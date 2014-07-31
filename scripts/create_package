@@ -163,7 +163,7 @@ done
 
 #send them to repo
 echo "scp *.deb *.dsc *.orig.tar.* *.debian.tar.* *.changes $_REPO:~"
-scp -P 3333 *.deb *.dsc *.orig.tar.* *.debian.tar.* *.changes $_REPO:~
+scp *.deb *.dsc *.orig.tar.* *.debian.tar.* *.changes $_REPO:~
 if [ $? -ne 0 ]; then
     exit 8;
 fi
