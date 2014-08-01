@@ -2,30 +2,26 @@ FROM BASE_IMAGE
 MAINTAINER alban.linard@lsv.ens-cachan.fr
 
 # Install dhcp client and iproute
-RUN apt-get install -y --force-yes udhcpc iproute2 wget gcc ca-certificates xz-utils make libc6-dev bc libc-bin
+RUN apt-get install -y --force-yes udhcpc iproute2 wget gcc xz-utils make libc6-dev bc libc-bin
 
 # Install custom kernel:
-RUN wget https://www.kernel.org/pub/linux/kernel/v3.x/linux-3.15.5.tar.xz -O /usr/src/linux-3.15.5.tar.xz
-RUN tar xf /usr/src/linux-3.15.5.tar.xz -C /usr/src/
-ADD ./data/kernel/kernel-3.15.5-x86_64.config /usr/src/linux-3.15.5/kernel-3.15.5-x86_64.config
-ADD ./data/kernel/kernel-3.15.5-x86.config /usr/src/linux-3.15.5/kernel-3.15.5-x86.config
-RUN if [ `getconf LONG_BIT` = "64" ]; then mv /usr/src/linux-3.15.5/kernel-3.15.5-x86_64.config /usr/src/linux-3.15.5/.config; else mv /usr/src/linux-3.15.5/kernel-3.15.5-x86.config /usr/src/linux-3.15.5/.config; fi
-RUN cd /usr/src/linux-3.15.5/ && make -j2
-RUN cp /usr/src/linux-3.15.5/arch/x86/boot/bzImage /boot/vmlinuz-3.15.5
-RUN ln -s /boot/vmlinuz-3.15.5 /vmlinuz
-ENV VMLINUZ vmlinuz-3.15.5
-RUN rm -rf /usr/src/linux-3.15.5*
+RUN wget -q --no-check-certificate https://www.kernel.org/pub/linux/kernel/v3.x/linux-3.15.5.tar.xz -O /usr/src/linux.tar.xz
+RUN tar xf /usr/src/linux.tar.xz -C /usr/src/
+ADD ./data/kernel/kernel-3.15.5-x86_64.config /usr/src/linux/kernel-x86_64.config
+ADD ./data/kernel/kernel-3.15.5-x86.config /usr/src/linux/kernel-x86.config
+RUN if [ `getconf LONG_BIT` = "64" ]; then mv /usr/src/linux/kernel-x86_64.config /usr/src/linux/.config; else mv /usr/src/linux/kernel-x86.config /usr/src/linux/.config; fi
+RUN cd /usr/src/linux/ && make -j2 > /dev/null
+RUN cp /usr/src/linux/arch/x86/boot/bzImage /boot/vmlinuz
+RUN ln -s /boot/vmlinuz /vmlinuz
+RUN rm -rf /usr/src/linux*
 
 # Install Bootloader:
-RUN apt-get install -y extlinux syslinux-common
+RUN apt-get install -y --force-yes extlinux syslinux-common
 # RUN mkdir /boot/extlinux
 ADD ./data/boot/extlinux /boot/extlinux
 
 # Give a password to root
-RUN echo "toor" > /root/pass
-RUN echo "toor" >> /root/pass
-RUN passwd < /root/pass
-RUN rm /root/pass
+RUN echo "root:toor" | chpasswd
 
 # Remove packages needed for kernel build
-RUN apt-get autoremove -y gcc ca-certificates xz-utils make libc6-dev bc libc-bin
+RUN apt-get autoremove -y --force-yes gcc xz-utils make libc6-dev bc libc-bin
