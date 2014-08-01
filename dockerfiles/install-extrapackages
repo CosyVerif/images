@@ -1,0 +1,7 @@
+FROM BASE_IMAGE
+RUN apt-get update
+RUN apt-get install -y wget
+RUN echo 'deb REPOSITORY SUITE' >> /etc/apt/sources.list
+RUN wget -O - REPOSITORY/gpgkey | apt-key add -
+RUN apt-get update
+RUN apt-get install -y --force-yes PACKAGES
