@@ -51,6 +51,8 @@ Options :
            Create a virtual disk/docker image which doesn't install recommended
            packages when you want to install a package.
       ** This option is mandatory ! **
+ -D
+      Debug mode. 
  -f <format> 
       Indicate what type of virtual disk image to create. Can be  one of these:
       vmdk, qcow2, qcow, raw. Default: $VMFORMAT.
@@ -147,7 +149,7 @@ create_vm () {
 
 f_seen=false;
 s_seen=false;
-while getopts ":t:f:n:a:s:v:b:p:r:R:h" OPT; do
+while getopts ":t:f:n:a:s:v:b:p:r:R:hD" OPT; do
     case $OPT in
 	t)
 	    if [ "$OPTARG" != "image" ] && [ "$OPTARG" != "vm" ]
@@ -207,6 +209,8 @@ while getopts ":t:f:n:a:s:v:b:p:r:R:h" OPT; do
 	    REMOVE="$OPTARG";;
 	R)
 	    COSYREPO="`echo $OPTARG | perl -pe 's/,/ /;'`";;
+	D)
+	    set -x;;
 	*)
 	    echo "usage: $0 [OPTIONS]">&2;
 	    echo "Use $0 -h for more informations">&2;
