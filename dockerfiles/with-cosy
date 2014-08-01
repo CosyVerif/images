@@ -2,4 +2,3 @@ FROM BASE_IMAGE
 RUN apt-get update
 RUN apt-get install passwd
 RUN useradd -m -d /home/cosy -s /bin/bash cosy
-echo "root:toor" | chpasswd
