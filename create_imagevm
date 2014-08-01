@@ -42,7 +42,7 @@ Options :
                                             software (correctly configured)  one
                                             might   need   to   setup  a  debian
                                             repository.
-                     - with-slave-jenkins : Create  a  virtual  disk image which
+                     - with-jenkins-slave : Create  a  virtual  disk image which
                                             contain a kernel and  everything you
                                             need to setup a jenkins slave. 
                      - without-recommends : Create  a  virtual disk/docker image
@@ -185,7 +185,7 @@ while getopts ":t:f:n:a:s:v:b:p:r:R:h" OPT; do
 	b) 
 	    case $OPTARG in
 		debian | cosy | with-buildeb | with-kernel | with-minimal |\
-		with-repo | with-slave-jenkins | without-recommends) 
+		with-repo | with-jenkins-slave | without-recommends) 
 		    BRANCH="$OPTARG";;
 		*)
 		    echo "ERROR : Unknown branch $OPTARG">&2;
