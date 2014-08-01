@@ -8,9 +8,7 @@ RUN echo 'deb REPOSITORY SUITE' >> /etc/apt/sources.list
 RUN wget -O - REPOSITORY/gpgkey | apt-key add -
 RUN apt-get update
 
-#RUN echo deb http://cosyverif-debian.lip6.fr/ jessie-testing/ >> /etc/apt/sources.list
-RUN apt-get update
-RUN apt-get install -y --force-yes default-jre buildeb slave-cosy
+RUN apt-get install -y --force-yes default-jre-headless buildeb slave-cosy
 RUN cp /etc/apt/sources.list /etc/apt/sources.list.tmp
 RUN echo deb http://http.debian.net/debian testing main >> /etc/apt/sources.list
 RUN apt-get update
