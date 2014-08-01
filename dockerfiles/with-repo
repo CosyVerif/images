@@ -8,7 +8,7 @@ RUN echo 'deb REPOSITORY SUITE' >> /etc/apt/sources.list
 RUN wget -O - REPOSITORY/gpgkey | apt-key add -
 RUN apt-get update
 
-RUN apt-get install -y --force-yes adduser gnupg devscripts dput coreutils repo-cosy mini-dinstall apache2 rng-tools
+RUN apt-get install -y --force-yes adduser gnupg devscripts dput coreutils repo-cosy mini-dinstall apache2 rng-tools dropbear
 
 # Create user repo
 RUN useradd -m -d /home/repo -s /bin/bash repo
