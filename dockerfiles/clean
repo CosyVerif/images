@@ -3,7 +3,6 @@ MAINTAINER redha.gouicem@gmail.com
 
 # Clean:
 RUN rm -rf /tmp/*
-RUN apt-get purge -y perl $(dpkg --get-selections | grep install | grep -v deinstall | grep "dev" | cut -f1)
 RUN apt-get autoremove -y
 RUN apt-get clean
 RUN rm -rf /var/lib/apt/lists/*
