@@ -1,9 +1,13 @@
-FROM BASEIMAGE
+FROM BASE_IMAGE
 MAINTAINER redha.gouicem@gmail.com
 
 # Install needed tools to manage a Debian repository
-RUN echo 'deb REPOSITORY SUITE' >> /etc/apt/sources.list
 RUN apt-get update
+RUN apt-get install -y wget
+RUN echo 'deb REPOSITORY SUITE' >> /etc/apt/sources.list
+RUN wget -O - REPOSITORY/gpgkey | apt-key add -
+RUN apt-get update
+
 RUN apt-get install -y --force-yes adduser gnupg devscripts dput coreutils repo-cosy mini-dinstall apache2 rng-tools
 
 # Create user repo
