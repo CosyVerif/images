@@ -112,7 +112,7 @@ do_dockerfile () {
 	    perl -pi -e 's!REPOSITORY!'"$COSYTMP"'!;' Dockerfile;;
 	clean)
 	    docker.io rmi -f $(docker.io images | grep "^<none>" | awk \
-		'{print $3}') 2>/dev/null;;	
+		'{print $3}') 2>/dev/null || :;;	
 	with-repo | with-jenkins-slave)
 	    perl -pi -e 's!REPOSITORY SUITE!'"$COSYREPO"'!;' Dockerfile;
 	    COSYTMP="`echo $COSYREPO | cut -d' ' -f1`";
@@ -123,12 +123,12 @@ do_dockerfile () {
     esac
     docker build -t $TMPNAME .;
     rm Dockerfile;
-    docker.io rm -f $(docker.io ps -a -q) 2>/dev/null;
+    docker.io rm -f $(docker.io ps -a -q) 2>/dev/null || :;
 }
 
 create_final_image () {
     docker.io run -d $TMPNAME echo |xargs  docker export | docker import - $NAME
-    docker.io rm -f $(docker.io ps -a -q) 2>/dev/null;
+    docker.io rm -f $(docker.io ps -a -q) 2>/dev/null || :;
     [ "$REMOVE" == "yes" ] && {
 	docker.io rmi -f $TMPNAME;
     }
@@ -136,7 +136,7 @@ create_final_image () {
 
 create_vm () {
     docker.io run -d $TMPNAME echo |xargs docker export > $NAME.tar
-    docker.io rm -f $(docker.io ps -a -q) 2>/dev/null;
+    docker.io rm -f $(docker.io ps -a -q) 2>/dev/null || :;
     [ "$REMOVE" == "yes" ] && {
 	docker.io rmi -f $TMPNAME;
     }
