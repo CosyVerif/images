@@ -1,0 +1,313 @@
+#! /bin/bash
+
+VMFORMAT=vmdk;
+TYPE="";
+NAME="";
+ARCHI=amd64;
+SIZE="5G";
+DEBIANVERSION="jessie"
+BRANCH="";
+PACKAGES="";
+TMPNAME="tmp`date +%s`";
+REMOVE="yes";
+COSYREPO="http://cosyverif-debian.lip6.fr jessie-testing/";
+
+usage(){
+    cat << EOF
+Usage : $0 [OPTIONS]
+Creates docker images or virtual disks.
+You have to be root in order to execute this command !
+
+
+Options :
+  -a <archi>   :  Architecture. It can either be amd64 or i386. Default : $ARCHI
+  -b <branch>  :  What kind  of docker image/vm you  want  to  create. It can be
+                  one of the 8 following value :
+                     - debian             : Create a virtual  disk/docker  image
+                                            containing a debian  system  without
+                                            a kernel
+                     - cosy               : Create a virtual disk  image  with a
+                                            kernel, and a user named 'cosyverif'
+                     - with-buildeb       : Create    a    virtual   disk/docker
+                                            image containing the dependencies of
+                                            buildeb, and nothing more.
+                     - with-kernel        : Create a minimal virtual disk/docker
+                                            image with a kernel.
+                     - with-minimal       : Create a minimal virtual disk/docker
+                                            image. It  means  that  there are no
+                                            manpages and no superfluous packages
+                                            installed.
+                     - with-repo          : Create  a  virtual  disk image which
+                                            contains  a  kernel   and   all  the
+                                            software (correctly configured)  one
+                                            might   need   to   setup  a  debian
+                                            repository.
+                     - with-slave-jenkins : Create  a  virtual  disk image which
+                                            contain a kernel and  everything you
+                                            need to setup a jenkins slave. 
+                     - without-recommends : Create  a  virtual disk/docker image
+                                            which  doesn't  install  recommended
+                                            packages when you want to install  a
+                                            package.
+                  This option is mandatory !
+  -f <format>  :  Indicate what type of virtual disk image to create. Can be one
+                  of  these   :  vmdk,  qcow2,  qcow,  raw. Default : $VMFORMAT.
+                  This  option  is mandatory if you want to build a virtual disk
+                  image. Otherwise, you shouldn't use it.
+  -h           :  Print this
+  -n <name>    :  The  name  you  want  to give to your docker image or your vm.
+  -p <packages>:  List of packages you want to install in the resulting  virtual
+                  disk/docker image. The list of packages  have  to  be  written
+                  like that : package1,package2,package3,...
+  -r <yes/no>  :  (Don't)  Remove  temporary  files  and  docker images. Default
+                  value : $REMOVE. It means that all temporary files and  docker
+                  images are removed at the end of the script.
+  -R <repo>    :  Address  of  the  debian  repository where are located all the
+                  cosyverif related packages. It must follow this pattern :
+                     <repo_address>,<section>.
+                  Default : $COSYREPO
+                  <section> HAVE TO be consistent with the debian version you're
+                  going to use.
+  -s <size>    :  Size of the virtual disk image. Default : $SIZE.
+  -t <type>    :  Indicate what you want to create. <type> can be one of these :
+                     - image : A docker image will be created
+                     - vm    : A virtual disk image will be created. You have to
+                               use -f to specify what type of virtual disk image
+                               you want to create
+                  This option is mandatory.
+  -v <version> :  What Debian  version  you  want  to  use to create your docker
+                  image or your virtual disk image. Default : $DEBIANVERSION
+
+EOF
+}
+
+do_debian () {
+    /usr/share/docker.io/contrib/mkimage-debootstrap.sh \
+	-v minbase \
+	-a $ARCHI \
+	-t debiantarball.createimvm.tmp.tar \
+	$DEBIANVERSION
+    cat debiantarball.createimvm.tmp.tar | docker import - $TMPNAME
+    [ "$REMOVE" == "yes" ] && {
+	rm debiantarball.createimvm.tmp.tar;
+    }
+}
+
+do_dockerfile () {
+    dockerfile_name=$1;
+    cp dockerfiles/$dockerfile_name Dockerfile;
+    perl -pi -e 's/BASE_IMAGE/'"$TMPNAME"'/;' Dockerfile;
+    case $dockerfile_name in
+	install-extrapackages)
+	    perl -pi -e 's/PACKAGES/'"$PACKAGES"'/;' Dockerfile;
+	    perl -pi -e 's!REPOSITORY SUITE!'"$COSYREPO"'!;' Dockerfile;
+	    COSYTMP="`echo $COSYREPO | cut -d' ' -f1`";
+	    COSYTMP="`echo "$COSYTMP" | perl -ne 'print $1 if /^(.+)\/?/;'`";
+	    perl -pi -e 's!REPOSITORY!'"$COSYTMP"'!;' Dockerfile;;
+	clean)
+	    docker.io rmi -f $(docker.io images | grep "^<none>" | awk \
+		'{print $3}') 2>/dev/null;;	
+	with-repo | with-jenkins-slave)
+	    perl -pi -e 's!REPOSITORY SUITE!'"$COSYREPO"'!;' Dockerfile;
+	    COSYTMP="`echo $COSYREPO | cut -d' ' -f1`";
+	    COSYTMP="`echo "$COSYTMP" | perl -ne 'print $1 if /^(.+)\/?/;'`";
+	    perl -pi -e 's!REPOSITORY!'"$COSYTMP"'!;' Dockerfile;;
+	*)
+	    echo ;;
+    esac
+    docker build -t $TMPNAME .;
+    rm Dockerfile;
+    docker.io rm -f $(docker.io ps -a -q) 2>/dev/null;
+}
+
+create_final_image () {
+    docker.io run -d $TMPNAME echo |xargs  docker export | docker import - $NAME
+    docker.io rm -f $(docker.io ps -a -q) 2>/dev/null;
+    [ "$REMOVE" == "yes" ] && {
+	docker.io rmi -f $TMPNAME;
+    }
+}
+
+create_vm () {
+    docker.io run -d $TMPNAME echo |xargs docker export > $NAME.tar
+    docker.io rm -f $(docker.io ps -a -q) 2>/dev/null;
+    [ "$REMOVE" == "yes" ] && {
+	docker.io rmi -f $TMPNAME;
+    }
+    gzip $NAME.tar;
+    genvm -a $ARCHI -vD -d $NAME.tar.gz -e -f $VMFORMAT -s $SIZE $NAME
+    [ "$REMOVE" == "yes" ] && {
+	rm -rf $NAME.tar.gz;
+    }
+}
+
+f_seen=false;
+s_seen=false;
+while getopts ":t:f:n:a:s:v:b:p:r:R:h" OPT; do
+    case $OPT in
+	t)
+	    if [ "$OPTARG" != "image" ] && [ "$OPTARG" != "vm" ]
+	    then
+		echo "ERROR : Unknown type $OPTARG" >&2;
+		exit 1;
+	    fi
+	    TYPE="$OPTARG";
+	    ;;
+	f)
+	    case $OPTARG in
+		vmdk | qcow | qcow2 | raw)
+		    VMFORMAT="$OPTARG";;
+		*)
+		    echo "ERROR : Unknown virtual disk image format :\
+ $OPTARG">&2;
+		    exit 2;;
+	    esac
+	    f_seen=true;
+	    ;;
+	h)
+	    usage;
+	    exit 0;;
+	n)
+	    NAME="$OPTARG";;
+	a)
+	    if [ "$OPTARG" != "amd64" ] && [ "$OPTARG" != "i386" ]
+	    then
+		echo "ERROR : Unknown architecture : $OPTARG" >&2;
+		exit 3;
+	    fi
+	    ARCHI="$OPTARG";;
+	s)
+	    SIZE="$OPTARG";
+	    s_seen=true;;
+	v)
+	    DEBIANVERSION="$OPTARG";
+	    ;;
+	b) 
+	    case $OPTARG in
+		debian | cosy | with-buildeb | with-kernel | with-minimal |\
+		with-repo | with-slave-jenkins | without-recommends) 
+		    BRANCH="$OPTARG";;
+		*)
+		    echo "ERROR : Unknown branch $OPTARG">&2;
+		    echo "ERROR : use $0 -h for more informations">&2;
+		    exit 7;;
+	    esac;;
+	p)
+	    PACKAGES="`echo $OPTARG | perl -pe 's/,/ /g;'`";;
+	r)
+	    if [ "$OPTARG" != "yes" ] && [ "$OPTARG" != "no" ]
+	    then
+		echo "ERROR : Unknown value $OPTARG for -r option">&2;
+		exit 8;
+	    fi
+	    REMOVE="$OPTARG";;
+	R)
+	    COSYREPO="`echo $OPTARG | perl -pe 's/,/ /;'`";;
+	*)
+	    echo "usage: $0 [OPTIONS]">&2;
+	    echo "Use $0 -h for more informations">&2;
+	    exit 4;;
+    esac
+done
+shift $(( OPTIND - 1 ))
+OPTIND=1
+
+if [ -z "$TYPE" ]
+then
+    echo "ERROR : You haven't specified what you want to create">&2;
+    echo "ERROR : You have to use -t">&2;
+    exit 5;
+fi
+
+if [ -z "$BRANCH" ]
+then
+    echo "ERROR : You haven't specified what kind of $TYPE you want to create"\
+>&2;
+    echo "ERROR : You have to use -b to specify it."
+    exit 6;
+fi
+
+if [ "$TYPE" == "image" ] && [ $f_seen = true ]
+then
+    echo "WARNING : You want to build a docker image, you shouldn't use -f";
+    echo "WARNING : -f option ignored";
+fi
+
+if [ "$TYPE" == "image" ] && [ $s_seen = true ]
+then
+    echo "WARNING : You want to build a docker image, you shouldn't use -s";
+    echo "WARNING : -s option ignored";
+fi
+
+if [ -z "$NAME" ]
+then
+    if [ "$TYPE" == "image" ]
+    then
+	NAME="$BRANCH:$DEBIANVERSION-$ARCHI";
+    else 
+	NAME="$BRANCH.$DEBIANVERSION.$ARCHI.$VMFORMAT";
+    fi
+fi
+ 
+do_debian;
+
+case $BRANCH in
+    debian)
+	[ "$TYPE" == "vm" ] && {
+	    do_dockerfile with-kernel;
+	}
+	;;
+    without-recommends)
+	do_dockerfile without-recommends;
+	[ "$TYPE" == "vm" ] && {
+	    do_dockerfile with-kernel;
+	}
+	;;	
+    with-minimal)
+	do_dockerfile without-recommends;
+	do_dockerfile with-minimal;
+	[ "$TYPE" == "vm" ] && {
+	    do_dockerfile with-kernel;
+	}
+	;;
+    with-kernel)
+	do_dockerfile with-kernel;;
+    with-buildeb)
+	do_dockerfile without-recommends;
+	do_dockerfile with-minimal;
+	do_dockerfile with-buildeb;
+	[ "$TYPE" == "vm" ] && {
+	    do_dockerfile with-kernel;
+	}
+	;;
+    with-repo)
+	do_dockerfile without-recommends;
+	do_dockerfile with-minimal;
+	do_dockerfile with-kernel;
+	do_dockerfile with-repo;;
+    with-jenkins-slave)
+	do_dockerfile without-recommends;
+	do_dockerfile with-minimal;
+	do_dockerfile with-kernel;
+	do_dockerfile with-jenkins-slave;;
+    cosy)
+	do_dockerfile without-recommends;
+	do_dockerfile with-kernel;
+	do_dockerfile with-cosy;;
+    *)
+	echo "should not be";;
+esac
+
+if [ ! -z "$PACKAGES" ]
+then
+    do_dockerfile install-extrapackages;
+fi
+
+do_dockerfile clean;
+
+if [ "$TYPE" == "image" ]
+then
+    create_final_image;
+else
+    create_vm;
+fi
