@@ -1,0 +1,8 @@
+FROM BASE_IMAGE
+RUN apt-get update
+RUN apt-get install passwd
+RUN useradd -m -d /home/cosy -s /bin/bash cosy
+RUN echo "cosy" > pass
+RUN echo "cosy" >>pass
+RUN passwd cosy < pass
+RUN rm pass
