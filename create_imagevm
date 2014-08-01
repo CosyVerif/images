@@ -1,4 +1,5 @@
 #! /bin/bash
+set -e;
 
 VMFORMAT=vmdk;
 TYPE="";
@@ -20,10 +21,10 @@ Creates docker images or virtual disks.
 
 Options :
  -a <archi>   
-     Architecture. It can either be amd64 or i386. Default: $ARCHI
+      Architecture. It can either be amd64 or i386. Default: $ARCHI
  -b <branch>  
-     What kind of docker image/vm you want to  create. It can be one of  the  8
-     following value:
+      What kind of docker image/vm you want to  create. It can be one of the  8
+      following value:
         debian
           Create a virtual disk/docker image containing a debian system without
           a kernel (unless  you  want  to  create a virtual disk image. In that
@@ -49,35 +50,35 @@ Options :
         without-recommends 
            Create a virtual disk/docker image which doesn't install recommended
            packages when you want to install a package.
-     ** This option is mandatory ! **
-  -f <format> 
+      ** This option is mandatory ! **
+ -f <format> 
       Indicate what type of virtual disk image to create. Can be  one of these:
       vmdk, qcow2, qcow, raw. Default: $VMFORMAT.
       If you want to build a docker image, you must not use this option.
-  -h           
+ -h           
       Print this
-  -n <name>    
-     The name you want to give to your docker image or your vm.
-  -p <packages>
+ -n <name>    
+      The name you want to give to your docker image or your vm.
+ -p <packages>
       List of packages you want to install in the resulting virtual disk/docker
       image. The list of packages  have  to  be  written like that: 
       package1,package2,package3,...
-  -r <yes/no>  
+ -r <yes/no>  
       (Do or Don't) Remove temporary  docker images  and  files. Default value:
       $REMOVE. It means that temporary files and docker images will be removed
-  -R <repo>
+ -R <repo>
       Address  of  the  debian  repository where are located all the  cosyverif
       related packages. It must follow this pattern: <repo_address>,<section>. 
       Default: $COSYREPO
       **<section> MUST be coherent with the debian version you want to use.**
-  -s <size> 
+ -s <size> 
       Size of the virtual disk image. Default : $SIZE.
-  -t <type>
+ -t <type>
       Indicate what you want to create. <type> can be one of these:
         image: A docker image will be created
         vm: A virtual disk image will be created.
       ** This option is mandatory. **
-  -v <version> 
+ -v <version> 
       What Debian  version you  want to use to create your docker image or your
       virtual disk image. Default : $DEBIANVERSION
 EOF
@@ -88,7 +89,8 @@ do_debian () {
 	-v minbase \
 	-a $ARCHI \
 	-t debiantarball.createimvm.tmp.tar \
-	$DEBIANVERSION
+	$DEBIANVERSION \
+	http://http.debian.net/debian
     cat debiantarball.createimvm.tmp.tar | docker import - $TMPNAME
     [ "$REMOVE" == "yes" ] && {
 	rm debiantarball.createimvm.tmp.tar;
