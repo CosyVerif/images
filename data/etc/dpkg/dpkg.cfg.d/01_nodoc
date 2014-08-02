@@ -11,5 +11,10 @@ path-exclude /usr/share/i18n/locales/*
 path-include /usr/share/i18n/locales/C
 path-exclude /usr/share/i18n/charmaps/*
 path-include /usr/share/i18n/charmaps/UTF-8*
-path-exclude /usr/share/perl/*/Unicode
-path-exclude /usr/share/mime
+path-exclude /usr/share/perl/*/Unicode/*
+path-exclude /usr/share/perl/*/Locale/*
+path-exclude /usr/share/mime/*
+path-exclude /usr/lib/perl/auto/Encode/*
+path-exclude /usr/lib/perl/auto/Unicode/*
+
+
