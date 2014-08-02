@@ -1,4 +1,5 @@
 #! /bin/bash
+
 set -e;
 
 VMFORMAT=vmdk;
@@ -12,9 +13,11 @@ PACKAGES="";
 TMPNAME="tmp`date +%s`";
 REMOVE="yes";
 COSYREPO="http://cosyverif-debian.lip6.fr jessie-testing/";
+DEBUGMODE=false;
+VERBOSEMODE=false;
 
 usage(){
-    perl -ne 'use Term::ANSIColor qw(:constants); if(/^\s*(debian|cosy|buildeb|kernel|minimal|repo|jenkins-slave|without-recommends)\s*$/){print BRIGHT_BLUE, $_, RESET;}elsif(/^(\s*-\w(\s*\<.*?\>)?)\s*$/){print BRIGHT_GREEN, $_, RESET;}elsif(/^\s*\*\*.*?\*\*\s*$/){print BRIGHT_RED, $_, RESET;}else{print;}' << EOF
+    perl -ne 'use Term::ANSIColor qw(:constants); if(/^\s*(debian|cosy|buildeb|kernel|minimal|repo|jenkins-slave|without-recommends)\s*$/){print BRIGHT_BLUE, $_, RESET;}elsif(/^(\s*-\w(\s*\<.*?\>)?)\s*$/){print BRIGHT_GREEN, $_, RESET;}elsif(/^\s*\*\*.*$/ || /^\s*.*?\*\*\s$/){print BRIGHT_RED, $_, RESET;}else{print;}' << EOF
 Usage : $0 [OPTIONS]
 Creates docker images or virtual disks.
 ** You have to be root in order to execute this command ! **
@@ -83,17 +86,29 @@ Options :
  -v <version> 
       What Debian  version you  want to use to create your docker image or your
       virtual disk image. Default : $DEBIANVERSION
+ -V
+      Verbose mode
 EOF
 }
 
+verbose_mode () {
+    [ $VERBOSEMODE = true ] && {
+	cat
+    } || {
+	cat >> /dev/null
+    }
+}
+
 do_debian () {
+    echo "Downloading Debian ...";
     /usr/share/docker.io/contrib/mkimage-debootstrap.sh \
 	-v minbase \
 	-a $ARCHI \
 	-t debiantarball.createimvm.tmp.tar \
 	$DEBIANVERSION \
-	http://http.debian.net/debian
-    cat debiantarball.createimvm.tmp.tar | docker import - $TMPNAME
+	http://http.debian.net/debian | verbose_mode
+    echo "Debian has been downloaded";
+    cat debiantarball.createimvm.tmp.tar | docker import - $TMPNAME >>/dev/null
     [ "$REMOVE" == "yes" ] && {
 	rm debiantarball.createimvm.tmp.tar;
     }
@@ -121,13 +136,18 @@ do_dockerfile () {
 	*)
 	    echo ;;
     esac
-    docker build -t $TMPNAME .;
+    echo "Executing dockerfile $dockerfile_name ..."
+    docker build -t $TMPNAME . | verbose_mode;
     rm Dockerfile;
+    echo "Dockerfile $dockerfile_name successfuly executed !";
     docker.io rm -f $(docker.io ps -a -q) 2>/dev/null || :;
 }
 
 create_final_image () {
-    docker.io run -d $TMPNAME echo |xargs  docker export | docker import - $NAME
+    echo "Creating image $NAME ...";
+    docker.io run -d $TMPNAME echo |xargs  docker export | \
+	docker import - $NAME >/dev/null
+    echo "Image $NAME created !";
     docker.io rm -f $(docker.io ps -a -q) 2>/dev/null || :;
     [ "$REMOVE" == "yes" ] && {
 	docker.io rmi -f $TMPNAME;
@@ -135,13 +155,36 @@ create_final_image () {
 }
 
 create_vm () {
+    echo "Exporting docker image ..."
     docker.io run -d $TMPNAME echo |xargs docker export > $NAME.tar
+    echo "docker image successfuly exported";
+
     docker.io rm -f $(docker.io ps -a -q) 2>/dev/null || :;
     [ "$REMOVE" == "yes" ] && {
-	docker.io rmi -f $TMPNAME;
+	docker.io rmi -f $TMPNAME | verbose_mode;
     }
+
+    echo "Compressing tarball ...";
     gzip $NAME.tar;
-    genvm -a $ARCHI -vD -d $NAME.tar.gz -e -f $VMFORMAT -s $SIZE $NAME
+    echo "Tarball compressed !";
+    echo "Creating virtual disk image ...";
+    
+    [ $VERBOSEMODE = true ] && {
+	[ $DEBUGMODE = true ] && {
+	    genvmopts="-v -D";
+	} || {
+	    genvmopts="-v";
+	}
+    } || {
+	[ $DEBUGMODE = true ] && {
+	    genvmopts="-D";
+	} || {
+	    genvmopts="";
+	}	
+    }
+
+    genvm $genvmopts -a $ARCHI -d $NAME.tar.gz -e -f $VMFORMAT -s $SIZE $NAME
+    echo "Virtual disk image successfuly created !";
     [ "$REMOVE" == "yes" ] && {
 	rm -rf $NAME.tar.gz;
     }
@@ -149,7 +192,7 @@ create_vm () {
 
 f_seen=false;
 s_seen=false;
-while getopts ":t:f:n:a:s:v:b:p:r:R:hD" OPT; do
+while getopts ":t:f:n:a:s:v:b:p:r:R:hDV" OPT; do
     case $OPT in
 	t)
 	    if [ "$OPTARG" != "image" ] && [ "$OPTARG" != "vm" ]
@@ -210,7 +253,10 @@ while getopts ":t:f:n:a:s:v:b:p:r:R:hD" OPT; do
 	R)
 	    COSYREPO="`echo $OPTARG | perl -pe 's/,/ /;'`";;
 	D)
+	    DEBUGMODE=true;
 	    set -x;;
+	V)
+	    VERBOSEMODE=true;;
 	*)
 	    echo "usage: $0 [OPTIONS]">&2;
 	    echo "Use $0 -h for more informations">&2;
