@@ -91,6 +91,13 @@ Options :
 EOF
 }
 
+are_you_root () {
+	[ ${EUID:=1000} -ne 0 ] && {
+		echo "ERR > Script only run as root" >&2 ;
+		exit 1 ;
+	}
+}
+
 verbose_mode () {
     [ $VERBOSEMODE = true ] && {
 	cat
@@ -292,6 +299,8 @@ then
     echo "WARNING : You want to build a docker image, you shouldn't use -s";
     echo "WARNING : -s option ignored";
 fi
+
+are_you_root;
 
 if [ -z "$NAME" ]
 then
