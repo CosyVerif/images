@@ -9,7 +9,7 @@ ARCHI=amd64;
 SIZE="5G";
 DEBIANVERSION="jessie"
 BRANCH="";
-PACKAGES="";
+EXTRAPACKAGES="";
 TMPNAME="tmp`date +%s`";
 REMOVE="yes";
 COSYREPO="http://cosyverif-debian.lip6.fr jessie-testing/";
@@ -17,15 +17,15 @@ DEBUGMODE=false;
 VERBOSEMODE=false;
 
 usage(){
-    perl -ne 'use Term::ANSIColor qw(:constants); if(/^\s*(debian|cosy|buildeb|kernel|minimal|repo|jenkins-slave|without-recommends)\s*$/){print BRIGHT_BLUE, $_, RESET;}elsif(/^(\s*-\w(\s*\<.*?\>)?)\s*$/){print BRIGHT_GREEN, $_, RESET;}elsif(/^\s*\*\*.*$/ || /^\s*.*?\*\*\s$/){print BRIGHT_RED, $_, RESET;}else{print;}' << EOF
+    perl -ne 'use Term::ANSIColor qw(:constants); if(/^\s*(debian|cosy|buildeb|kernel|minimal|repo|jenkins-slave|without-recommends)\s*$/){print GREEN, $_, RESET;}elsif(/^(((\s*-\w(\s*\<.*?\>)?)|(\s*--\w[-\w]*(=[-a-zA-Z\/]+)?)),?\s*)*$/){print BRIGHT_BLUE, $_, RESET;}elsif(/^\s*\*\*.*$/ || /^\s*.*?\*\*\s$/){print BRIGHT_RED, $_, RESET;}else{print;}' << EOF
 Usage : $0 [OPTIONS]
 Creates docker images or virtual disks.
 ** You have to be root in order to execute this command ! **
 
 Options :
- -a <archi>   
+ -a <archi>, --arch=ARCH, --architecture=ARCH  
       Architecture. It can either be amd64 or i386. Default: $ARCHI
- -b <branch>  
+ -b <branch>, --branch=BRANCH 
       What kind of docker image/vm you want to  create. It can be one of the  8
       following value:
         debian
@@ -54,48 +54,51 @@ Options :
            Create a virtual disk/docker image which doesn't install recommended
            packages when you want to install a package.
       ** This option is mandatory ! **
- -D
+ -D, --debug, --debug-mode
       Debug mode. 
- -f <format> 
+ -f <format>, --format=FORMAT, --vm-format=FORMAT, --format-vm=FORMAT 
       Indicate what type of virtual disk image to create. Can be  one of these:
       vmdk, qcow2, qcow, raw. Default: $VMFORMAT.
       If you want to build a docker image, you must not use this option.
- -h           
+ -h, --help       
       Print this
- -n <name>    
+ -n <name>, --name=NAME
       The name you want to give to your docker image or your vm.
- -p <packages>
+ -p <packages>, --install=PACKAGES, --extra-packages=PACKAGES, 
+  --packages=PACKAGES
       List of packages you want to install in the resulting virtual disk/docker
-      image. The list of packages  have  to  be  written like that: 
+      image. The list of packages must be written like that: 
       package1,package2,package3,...
- -r <yes/no>  
+ -r <yes/no>, --remove=yes/no  
       (Do or Don't) Remove temporary  docker images  and  files. Default value:
       $REMOVE. It means that temporary files and docker images will be removed
- -R <repo>
+ -R <repo>, --repository=REPO, --repo=REPO, --cosy-repo=REPO
       Address  of  the  debian  repository where are located all the  cosyverif
       related packages. It must follow this pattern: <repo_address>,<section>. 
       Default: $COSYREPO
       **<section> MUST be coherent with the debian version you want to use.**
- -s <size> 
+ -s <size>, --size=SIZE, --vmsize=SIZE, --sizevm=SIZE 
       Size of the virtual disk image. Default : $SIZE.
- -t <type>
+ -t <type>, --type=TYPE
       Indicate what you want to create. <type> can be one of these:
         image: A docker image will be created
         vm: A virtual disk image will be created.
       ** This option is mandatory. **
- -v <version> 
+ -v <version>, --version=VER, --debian-version=VER, --release=VER
       What Debian  version you  want to use to create your docker image or your
-      virtual disk image. Default : $DEBIANVERSION
- -V
+      virtual  disk  image.  It  must  either  be a release code name (squeeze,
+      wheezy, ...) or a symbolic name (stable, testing, unstable, ...). Default
+      value: $DEBIANVERSION.
+ -V, --verbose, --verbose-mode
       Verbose mode
 EOF
 }
 
 are_you_root () {
-	[ ${EUID:=1000} -ne 0 ] && {
-		echo "ERR > Script only run as root" >&2 ;
-		exit 1 ;
-	}
+    [ ${EUID:=1000} -ne 0 ] && {
+	echo "Error: You have to be root to run this script" >&2 ;
+	exit 1 ;
+    } || :
 }
 
 verbose_mode () {
@@ -127,7 +130,7 @@ do_dockerfile () {
     perl -pi -e 's/BASE_IMAGE/'"$TMPNAME"'/;' Dockerfile;
     case $dockerfile_name in
 	install-extrapackages)
-	    perl -pi -e 's/PACKAGES/'"$PACKAGES"'/;' Dockerfile;
+	    perl -pi -e 's/PACKAGES/'"$EXTRAPACKAGES"'/;' Dockerfile;
 	    perl -pi -e 's!REPOSITORY SUITE!'"$COSYREPO"'!;' Dockerfile;
 	    COSYTMP="`echo $COSYREPO | cut -d' ' -f1`";
 	    COSYTMP="`echo "$COSYTMP" | perl -ne 'print $1 if /^(.+)\/?/;'`";
@@ -145,6 +148,7 @@ do_dockerfile () {
     esac
     echo "Executing dockerfile $dockerfile_name ..."
     docker build -t $TMPNAME . | verbose_mode;
+    docker run -d $TMPNAME echo |xargs docker export | docker import - $TMPNAME
     rm Dockerfile;
     echo "Dockerfile $dockerfile_name successfuly executed !";
     docker.io rm -f $(docker.io ps -a -q) 2>/dev/null || :;
@@ -199,79 +203,241 @@ create_vm () {
 
 f_seen=false;
 s_seen=false;
-while getopts ":t:f:n:a:s:v:b:p:r:R:hDV" OPT; do
-    case $OPT in
-	t)
-	    if [ "$OPTARG" != "image" ] && [ "$OPTARG" != "vm" ]
-	    then
-		echo "ERROR : Unknown type $OPTARG" >&2;
+[ $# -eq 0 ] && {
+    echo "You can't use this script without arguments">&2;
+    echo "Use $0 --help for more informations">&2;
+    exit 1;
+}
+
+while [ ! -z "$1" ]
+do
+    case $1 in 
+	-a)
+	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
+		&&  {
+		echo "Error: -a option requires an argument">&2;
 		exit 1;
-	    fi
-	    TYPE="$OPTARG";
-	    ;;
-	f)
-	    case $OPTARG in
-		vmdk | qcow | qcow2 | raw)
-		    VMFORMAT="$OPTARG";;
+	    }
+	    [[ "$2" != "amd64" && "$2" != "i386" ]] && {
+		echo "Error: Unknown architecture $2";
+		exit 1;
+	    } 
+	    ARCHI=$2;
+	    shift 2;;
+	--arch=*|--architecture=*)
+	    ARCHI=${1#--*=};
+	    [[ "$ARCHI" != "amd64" && "$ARCHI" != "i386" ]] && {
+		echo "Error: Unknown architecture $ARCHI";
+		exit 1;
+	    } 
+	    shift;;
+	-b)
+	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
+		&& {
+		echo "Error: -b option requires an argument">&2;
+		exit 1;
+	    }
+	    case $2 in
+		debian | cosy | buildeb | kernel | minimal | repo |\
+                jenkins-slave | without-recommends) 
+		    BRANCH="$2";;
 		*)
-		    echo "ERROR : Unknown virtual disk image format :\
- $OPTARG">&2;
-		    exit 2;;
+		    echo "Error: Unknown branch $2">&2;
+		    exit 1;;
+	    esac
+	    shift 2;;
+	--branch=*)
+	    BRANCH=${1#--*=};
+	    case $BRANCH in
+		debian | cosy | buildeb | kernel | minimal | repo |\
+                jenkins-slave | without-recommends) 
+		    shift 1;;
+		*)
+		    echo "Error: Unknown branch $BRANCH">&2;
+		    exit 1;;
+	    esac;;
+	-D|--debug|--debug-mode)
+	    DEBUGMODE=true;
+	    set -x;
+	    shift;;
+	-f)
+	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
+		&& {
+		echo "Error: -f option requires an argument">&2;
+		exit 1;
+	    }
+	    
+	    case $2 in
+		vmdk | qcow | qcow2 | raw) 
+		    VMFORMAT="$2";;
+		*)
+		    echo "Error: Unknown virtual disk image format $2">&2;
+		    exit 1;;
 	    esac
 	    f_seen=true;
-	    ;;
-	h)
+	    shift 2;;
+	--format=* | --vm-format=* | --format-vm=*)
+	    VMFORMAT=${1#--*=};
+	    case $VMFORMAT in
+                vmdk | qcow | qcow2 | raw) 
+		    shift 1;;
+		*)
+		    echo "Error: Unknown virtual disk image format $VMFORMAT"\
+                    >&2;
+		    exit 1;;
+	    esac;;
+	-h | --help)
 	    usage;
 	    exit 0;;
-	n)
-	    NAME="$OPTARG";;
-	a)
-	    if [ "$OPTARG" != "amd64" ] && [ "$OPTARG" != "i386" ]
-	    then
-		echo "ERROR : Unknown architecture : $OPTARG" >&2;
-		exit 3;
-	    fi
-	    ARCHI="$OPTARG";;
-	s)
-	    SIZE="$OPTARG";
-	    s_seen=true;;
-	v)
-	    DEBIANVERSION="$OPTARG";
-	    ;;
-	b) 
-	    case $OPTARG in
-		debian | cosy | buildeb | kernel | minimal |\
-		repo | jenkins-slave | without-recommends) 
-		    BRANCH="$OPTARG";;
+	-n)
+	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
+		&& {
+		echo "Error: -n option requires an argument">&2;
+		exit 1;
+	    }
+	    NAME="$2";
+	    shift 2;;
+	--name=*)
+	   NAME=${1#--*=};
+	   [ -z "$NAME" ] && {
+	       echo "Error: Invalid name for --name">&2;
+	       exit 1;
+	   } || { 
+	       shift 1;
+	   }
+	   ;;
+	-p)
+	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
+		&& {
+		echo "Error: -p option requires an argument">&2;
+		exit 1;
+	    }
+	    EXTRAPACKAGES="$(echo "$2" | tr , ' ')";
+	    shift 2;;
+	--install=* | --extra-packages=* | --packages=*)
+	   EXTRAPACKAGES=${1#--*=};
+	   [ -z "$EXTRAPACKAGES" ] && {
+	       echo "Error: Invalid list of packages for ${1%=*}">&2;
+	       exit 1;
+	   } || { 
+	       EXTRAPACKAGES="$(echo "$EXTRAPACKAGES" | tr , ' ')";
+	       shift 1;
+	   }
+	   ;;
+	-r)    
+	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
+		&& {
+		echo "Error: -r option requires an argument">&2;
+		exit 1;
+	    }
+	   case $2 in
+	       yes | y | true)
+		   REMOVE="yes";;
+	       no | n | false)
+		   REMOVE="no";;
+	       *)
+		   echo"Error: Invalid value $2 for -r option">&2;
+		   exit 1;;
+	   esac
+	   shift 2;;
+	--remove=*)
+	    REMOVE=${1#--*=};
+	    case $REMOVE in
+		yes | y | true)
+		    REMOVE="yes";;
+		no | n | false)
+		    REMOVE="no";;
 		*)
-		    echo "ERROR : Unknown branch $OPTARG">&2;
-		    echo "ERROR : use $0 -h for more informations">&2;
-		    exit 7;;
-	    esac;;
-	p)
-	    PACKAGES="`echo $OPTARG | perl -pe 's/,/ /g;'`";;
-	r)
-	    if [ "$OPTARG" != "yes" ] && [ "$OPTARG" != "no" ]
-	    then
-		echo "ERROR : Unknown value $OPTARG for -r option">&2;
-		exit 8;
-	    fi
-	    REMOVE="$OPTARG";;
-	R)
-	    COSYREPO="`echo $OPTARG | perl -pe 's/,/ /;'`";;
-	D)
-	    DEBUGMODE=true;
-	    set -x;;
-	V)
-	    VERBOSEMODE=true;;
+		   echo"Error: Invalid value $REMOVE for -r option">&2;
+		   exit 1;;
+	    esac
+	    shift;;	
+	-R)
+	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
+		&& {
+		echo "Error: -R option requires an argument">&2;
+		exit 1;
+	    }
+	    COSYREPO="$(echo "$2" | tr , ' ');"
+	    shift 2;;
+	--repository=* | --repo=* | --cosy-repo=*)
+	    COSYREPO=${1#--*=};
+	    COSYREPO="$(echo "$COSYREPO" | tr , ' ')";
+	    shift;;
+	-s)
+	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
+		&& {
+		echo "Error: -s option requires an argument">&2;
+		exit 1;
+	    }
+	    SIZE="$2";
+	    s_seen=true;
+	    shift 2;;
+	--size=* | --vmsize=* | --sizevm=*)
+	    SIZE={$1#--*=};
+	    [ -z "$SIZE" ] && {
+		echo "Error: Invalid size for ${1%=*} option">&2;
+		exit 1;
+	    } || {
+		s_seen=true;
+		shift;
+	    }
+	    ;;
+	-t)
+	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
+		&& {
+		echo "Error: -t option requires an argument">&2;
+		exit 1;
+	    }
+	    [[ "$2" != "image" && "$2" != "vm" ]] && {
+		echo "Error: Unknow type $2 for -t option">&2;
+		exit 1;
+	    }
+	    TYPE=$2;
+	    shift 2;;
+	--type=*)
+	    TYPE=${1#--*=};
+	    [[ "$TYPE" != "image" && "$TYPE" != "vm" ]] && {
+		echo "Error: Unknow type $TYPE for --type option">&2;
+		exit 1;
+	    }
+	    shift;;
+	-v)
+	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
+		&& {
+		echo "Error: -v option requires an argument">&2;
+		exit 1;
+	    }
+	    
+	    [[ "$2" =~ ^([0-9]+\.?)+$ ]] && {
+		echo "Error: You can't use a version number for -v">&2;
+		exit 1;
+	    }
+	    DEBIANVERSION="$2";
+	    shift 2;;
+	--version=* | --debian-version=* | --release=*)
+	    DEBIANVERSION=${1#--*=};
+	    [[ "$2" =~ ^([0-9]+\.?)+$ ]] && {
+		echo "Error: You can't use a version number for -v">&2;
+		exit 1;
+	    }
+	    shift;;
+	-V | --verbose | --verbose-mode)
+	    VERBOSEMODE=true;
+	    shift;;
+	--*)
+	    echo "Unknown option ${1%=*}">&2;
+	    echo "Use $0 --help for more informations">&2;
+	    exit 1;;
+	-*)
+	    echo "Unknown option $1">&2;
+	    echo "Use $0 --help for more informations">&2;
+	    exit 1;;
 	*)
-	    echo "usage: $0 [OPTIONS]">&2;
-	    echo "Use $0 -h for more informations">&2;
-	    exit 4;;
+	    exit;;
     esac
-done
-shift $(( OPTIND - 1 ))
-OPTIND=1
+done;
+
 
 if [ -z "$TYPE" ]
 then
@@ -361,7 +527,7 @@ case $BRANCH in
 	echo "should not be";;
 esac
 
-if [ ! -z "$PACKAGES" ]
+if [ ! -z "$EXTRAPACKAGES" ]
 then
     do_dockerfile install-extrapackages;
 fi
