@@ -109,21 +109,6 @@ verbose_mode () {
     }
 }
 
-do_debian () {
-    echo "Downloading Debian ...";
-    /usr/share/docker.io/contrib/mkimage-debootstrap.sh \
-	-v minbase \
-	-a $ARCHI \
-	-t debiantarball.createimvm.tmp.tar \
-	$DEBIANVERSION \
-	http://http.debian.net/debian | verbose_mode
-    echo "Debian has been downloaded";
-    cat debiantarball.createimvm.tmp.tar | docker import - $TMPNAME >>/dev/null
-    [ "$REMOVE" == "yes" ] && {
-	rm debiantarball.createimvm.tmp.tar;
-    }
-}
-
 do_dockerfile () {
     dockerfile_name=$1;
     cp dockerfiles/$dockerfile_name Dockerfile;
@@ -148,10 +133,28 @@ do_dockerfile () {
     esac
     echo "Executing dockerfile $dockerfile_name ..."
     docker build -t $TMPNAME . | verbose_mode;
-    docker run -d $TMPNAME echo |xargs docker export | docker import - $TMPNAME
+    docker export $(docker run -d $TMPNAME echo)  | docker import - $TMPNAME
     rm Dockerfile;
     echo "Dockerfile $dockerfile_name successfuly executed !";
     docker.io rm -f $(docker.io ps -a -q) 2>/dev/null || :;
+}
+
+do_debian () {
+    echo "Downloading Debian ...";
+    /usr/share/docker.io/contrib/mkimage-debootstrap.sh \
+	-v minbase \
+	-a $ARCHI \
+	-t debiantarball.createimvm.tmp.tar \
+	$DEBIANVERSION \
+	http://http.debian.net/debian | verbose_mode
+    echo "Debian has been downloaded";
+    cat debiantarball.createimvm.tmp.tar | docker import - $TMPNAME >>/dev/null
+    [ "$REMOVE" == "yes" ] && {
+	rm debiantarball.createimvm.tmp.tar;
+    }
+    echo "Removing useless packages";
+    do_dockerfile remove-useless-packages;
+    echo "Useless packages removed !";
 }
 
 create_final_image () {
