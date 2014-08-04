@@ -1,0 +1,3 @@
+FROM BASE_IMAGE
+RUN dpkg --get-selections | cut -f1  | xargs -I replace apt-get purge -y --no-download replace || :
+RUN apt-get clean
