@@ -15,7 +15,7 @@ RUN useradd -m -d /home/repo -s /bin/bash repo
 
 # Configure apache
 ADD ./data/etc/apache2/sites-available/repository /etc/apache2/sites-available/repository
-RUN a2dissite default
+#RUN a2dissite default
 RUN a2ensite repository
 
 # Set user to repo
