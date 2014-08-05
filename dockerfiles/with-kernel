@@ -26,4 +26,4 @@ ADD ./data/boot/extlinux /boot/extlinux
 RUN echo "root:toor" | chpasswd
 
 # Remove packages needed for kernel build
-RUN apt-get autoremove -y --force-yes gcc xz-utils make libc6-dev bc
+RUN apt-get purge --auto-remove -y --force-yes gcc xz-utils make libc6-dev bc
