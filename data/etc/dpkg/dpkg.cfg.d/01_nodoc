@@ -2,6 +2,7 @@ path-exclude /usr/share/doc/*
 path-include /usr/share/doc/*/copyright
 path-exclude /usr/share/man/*
 path-exclude /usr/share/groff/*
+path-exclude /usr/share/zoneinfo/*
 path-exclude /usr/share/info/*
 path-exclude /usr/share/lintian/*
 path-exclude /usr/share/linda/*
@@ -11,6 +12,7 @@ path-exclude /usr/share/i18n/locales/*
 path-include /usr/share/i18n/locales/C
 path-exclude /usr/share/i18n/charmaps/*
 path-include /usr/share/i18n/charmaps/UTF-8*
+path-exclude /usr/share/perl/*/unicore/*
 path-exclude /usr/share/perl/*/Unicode/*
 path-exclude /usr/share/perl/*/Locale/*
 path-exclude /usr/share/mime/*
