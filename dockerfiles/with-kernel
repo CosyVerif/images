@@ -2,6 +2,7 @@ FROM BASE_IMAGE
 MAINTAINER alban.linard@lsv.ens-cachan.fr
 
 # Install dhcp client and iproute
+RUN apt-get update
 RUN apt-get install -y --force-yes udhcpc iproute2 wget gcc xz-utils make libc6-dev bc libc-bin
 
 # Install custom kernel:
