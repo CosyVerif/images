@@ -10,6 +10,7 @@ SIZE="5G";
 DEBIANVERSION="jessie"
 BRANCH="";
 EXTRAPACKAGES="";
+REMOVEPACKAGES="";
 TMPNAME="tmp`date +%s`";
 REMOVE="yes";
 COSYREPO="http://cosyverif-debian.lip6.fr jessie-testing/";
@@ -64,10 +65,10 @@ Options :
       Print this
  -n <name>, --name=NAME
       The name you want to give to your docker image or your vm.
- -p <packages>, --install=PACKAGES, --extra-packages=PACKAGES, 
+ -p <packages>, --install=PACKAGES, --extra-packages=PACKAGES,
   --packages=PACKAGES
       List of packages you want to install in the resulting virtual disk/docker
-      image. The list of packages must be written like that: 
+      image. The list of packages must be written like this: 
       package1,package2,package3,...
  -r <yes/no>, --remove=yes/no  
       (Do or Don't) Remove temporary  docker images  and  files. Default value:
@@ -76,7 +77,10 @@ Options :
       Address  of  the  debian  repository where are located all the  cosyverif
       related packages. It must follow this pattern: <repo_address>,<section>. 
       Default: $COSYREPO
-      **<section> MUST be coherent with the debian version you want to use.**
+      **<section> MUST be coherent with the debian version you want to use.** 
+ --remove-packages=PACKAGES
+      List  of  packages  to  remove in the virtual disk/docker image. The list
+      must be in the written like this : package1,package2,package3,...
  -s <size>, --size=SIZE, --vmsize=SIZE, --sizevm=SIZE 
       Size of the virtual disk image. Default : $SIZE.
  -t <type>, --type=TYPE
@@ -120,6 +124,8 @@ do_dockerfile () {
 	    COSYTMP="`echo $COSYREPO | cut -d' ' -f1`";
 	    COSYTMP="`echo "$COSYTMP" | perl -ne 'print $1 if /^(.+)\/?/;'`";
 	    perl -pi -e 's!REPOSITORY!'"$COSYTMP"'!;' Dockerfile;;
+	remove-packages)
+	    perl -pi -e 's/PACKAGES/'"$REMOVEPACKAGES"'/;' Dockerfile;;
 	clean)
 	    docker.io rmi -f $(docker.io images | grep "^<none>" | awk \
 		'{print $3}') 2>/dev/null || :;;	
@@ -367,6 +373,14 @@ do
 	    COSYREPO=${1#--*=};
 	    COSYREPO="$(echo "$COSYREPO" | tr , ' ')";
 	    shift;;
+	--remove-packages=*)
+	    REMOVEPACKAGES=${1#--*=};
+	    [ -z "$REMOVEPACKAGES" ] && {
+		echo "Error: The list of packages can't be empty">&2;
+		exit 1; 
+	    }
+	    REMOVEPACKAGES="$(echo "$REMOVEPACKAGES" | tr , ' ')";
+	    shift;;
 	-s)
 	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
 		&& {
@@ -444,29 +458,29 @@ done;
 
 if [ -z "$TYPE" ]
 then
-    echo "ERROR : You haven't specified what you want to create">&2;
-    echo "ERROR : You have to use -t">&2;
+    echo "ERROR: You haven't specified what you want to create">&2;
+    echo "ERROR: You have to use -t">&2;
     exit 5;
 fi
 
 if [ -z "$BRANCH" ]
 then
-    echo "ERROR : You haven't specified what kind of $TYPE you want to create"\
+    echo "ERROR: You haven't specified what kind of $TYPE you want to create"\
 >&2;
-    echo "ERROR : You have to use -b to specify it."
+    echo "ERROR: You have to use -b to specify it."
     exit 6;
 fi
 
 if [ "$TYPE" == "image" ] && [ $f_seen = true ]
 then
-    echo "WARNING : You want to build a docker image, you shouldn't use -f";
-    echo "WARNING : -f option ignored";
+    echo "WARNING: You want to build a docker image, you shouldn't use -f";
+    echo "WARNING: -f option ignored";
 fi
 
 if [ "$TYPE" == "image" ] && [ $s_seen = true ]
 then
-    echo "WARNING : You want to build a docker image, you shouldn't use -s";
-    echo "WARNING : -s option ignored";
+    echo "WARNING: You want to build a docker image, you shouldn't use -s";
+    echo "WARNING: -s option ignored";
 fi
 
 are_you_root;
@@ -534,6 +548,10 @@ if [ ! -z "$EXTRAPACKAGES" ]
 then
     do_dockerfile install-extrapackages;
 fi
+
+[ ! -z "$REMOVEPACKAGES"] && {
+    do_dockerfile remove-packages;
+}
 
 do_dockerfile clean;
 
