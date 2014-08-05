@@ -1,7 +1,5 @@
 #! /bin/bash
 
-set -e;
-
 VMFORMAT=vmdk;
 TYPE="";
 NAME="";
@@ -189,7 +187,7 @@ are_you_root () {
     [ ${EUID:=1000} -ne 0 ] && {
 	echo "Error: You have to be root to run this script" >&2 ;
 	exit 1 ;
-    } || :
+    }
 }
 
 verbose_mode () {
@@ -215,7 +213,7 @@ do_dockerfile () {
 	    perl -pi -e 's/PACKAGES/'"$REMOVEPACKAGES"'/;' Dockerfile;;
 	clean)
 	    docker.io rmi -f $(docker.io images | grep "^<none>" | awk \
-		'{print $3}') 2>/dev/null || :;;	
+		'{print $3}') 2>/dev/null | verbose_mode;;	
 	with-repo | with-jenkins-slave)
 	    perl -pi -e 's!REPOSITORY SUITE!'"$COSYREPO"'!;' Dockerfile;
 	    COSYTMP="`echo $COSYREPO | cut -d' ' -f1`";
@@ -231,12 +229,14 @@ do_dockerfile () {
     docker build -t $TMPNAME . | verbose_mode;
     [ ${PIPESTATUS[0]} -ne 0 ] && {
 	echo "An error occured while executing dockerfile $dockerfile_name">&2;
+	echo "Run the script with -v -D for more informations">&2;
 	exit 1;
     }
+
     docker export $(docker run -d $TMPNAME echo)  | docker import - $TMPNAME
     rm Dockerfile;
     echo "Dockerfile $dockerfile_name successfuly executed !";
-    docker.io rm -f $(docker.io ps -a -q) 2>/dev/null || :;
+    docker.io rm -f $(docker.io ps -a -q) 2>/dev/null | verbose_mode;
 }
 
 do_debian () {
@@ -247,11 +247,18 @@ do_debian () {
 	-t debiantarball.createimvm.tmp.tar \
 	$DEBIANVERSION \
 	http://http.debian.net/debian | verbose_mode
-    echo "Debian has been downloaded";
+    [ ${PIPESTATUS[0]} -ne 0 ] && {
+	echo "An error occured while downloading debian."\>&2;
+	echo "Run the script with -v -D for more informations">&2;
+	exit 1;
+    }
+
+    echo "Debian has been successfuly downloaded";
     cat debiantarball.createimvm.tmp.tar | docker import - $TMPNAME >>/dev/null
     [ "$REMOVE" == "yes" ] && {
 	rm debiantarball.createimvm.tmp.tar;
     }
+
     echo "Removing useless packages";
     do_dockerfile remove-useless-packages;
     echo "Useless packages removed !";
@@ -262,7 +269,7 @@ create_final_image () {
     docker.io export $(docker.io run -d $TMPNAME echo) | \
 	docker.io import - $NAME >/dev/null | verbose_mode
     echo "Image $NAME created !";
-    docker.io rm -f $(docker.io ps -a -q) 2>/dev/null | verbose_mode || :;
+    docker.io rm -f $(docker.io ps -a -q) 2>/dev/null | verbose_mode;
     [ "$REMOVE" == "yes" ] && {
 	docker.io rmi -f $TMPNAME | verbose_mode;
     }
@@ -298,6 +305,12 @@ create_vm () {
     }
 
     genvm $genvmopts -a $ARCHI -d $NAME.tar.gz -e -f $VMFORMAT -s $SIZE $NAME
+    [ $? -ne 0 ] && {
+	echo "An error occured while creating the virtual disk image">&2;
+	echo "Run the script with -v -D for more informations">&2;
+	exit 1;
+    }
+
     echo "Virtual disk image successfuly created !";
     [ "$REMOVE" == "yes" ] && {
 	rm -rf $NAME.tar.gz;
