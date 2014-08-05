@@ -16,9 +16,13 @@ REMOVE="yes";
 COSYREPO="http://cosyverif-debian.lip6.fr jessie-testing/";
 DEBUGMODE=false;
 VERBOSEMODE=false;
+DOCKERFILESDIR="dockerfiles";
+DOCKERFILES="";
+KEYSDIR="data/home/repo/.ssh/";
+KERNEL_DONE=false;
 
 usage(){
-    perl -ne 'use Term::ANSIColor qw(:constants); if(/^\s*(debian|cosy|buildeb|kernel|minimal|repo|jenkins-slave|without-recommends)\s*$/){print GREEN, $_, RESET;}elsif(/^(((\s*-\w(\s*\<.*?\>)?)|(\s*--\w[-\w]*(=[-a-zA-Z\/]+)?)),?\s*)*$/){print BRIGHT_BLUE, $_, RESET;}elsif(/^\s*\*\*.*$/ || /^\s*.*?\*\*\s$/){print BRIGHT_RED, $_, RESET;}else{print;}' << EOF
+    scripts/color_help.pl << EOF
 Usage : $0 [OPTIONS]
 Creates docker images or virtual disks.
 ** You have to be root in order to execute this command ! **
@@ -32,29 +36,112 @@ Options :
         debian
           Create a virtual disk/docker image containing a debian system without
           a kernel (unless  you  want  to  create a virtual disk image. In that
-          case, there will be a kernel). 
+          case, there will be a kernel). Dockerfiles used: none.
         cosy   
           Create a minimal virtual disk image with a kernel, and a  user  named
-          'cosyverif'
+          'cosyverif'. Dockerfiles   used:   without-recommends,   with-kernel,
+          with-cosy.
         buildeb 
           Create a minimal virtual disk/docker image  which  contains  all  the
-          dependencies of buildeb.
+          dependencies   of   buildeb. Dockerfiles  used:   without-recommends,
+          with-minimal, with-buildeb.
         kernel 
-          Create a virtual disk/docker image with a kernel.
+          Create a virtual disk/docker image with a kernel. Dockerfiles used:
+          with-kernel.
         minimal
           Create a minimal virtual disk/docker image. It means that  there  are
-          no manpages and no documentation installed.
+          no  manpages  and   no   documentation  installed. Dockerfiles  used:
+          without-recommends, with-minimal.
         repo
           Create a minimal virtual disk image which  contains  a kernel and all
           the software (correctly configured) one might need to  setup a debian
-          repository.
+          repository.  Dockerfiles   used:   without-recommends,  with-minimal,
+          with-kernel, with-repo.
         jenkins-slave 
            Create a minimal virtual disk image  which  contains  a  kernel  and
-           everything you need to setup a jenkins slave. 
+           everything  you  need  to  setup  a jenkins slave. Dockerfiles used:
+           without-recommends, with-minimal, with-kernel, with-jenkins-slave.
         without-recommends 
            Create a virtual disk/docker image which doesn't install recommended
-           packages when you want to install a package.
-      ** This option is mandatory ! **
+           or suggested packages when you want to install a package.
+        custom:DOCKERFILES
+           Create a custom virtual disk/docker image. You can choose to use any
+           dockerfile you want, as long as they're in the following  directory:
+           $DOCKERFILESDIR.
+           You can choose where this script will look for dockerfiles by  using
+           -d or --directory. The  list  of  dockerfiles  must  be written like
+           this: custom:dockerfile1,dockerfile2,dockerfile3,...
+      ** This option is mandatory unless  you  use  --custom  or  --dockerfiles
+      (which   is   actually  the  same   as  using  -b  custom:DOCKERFILES  or
+       --branch=custom:DOCKERFILES) **
+ --custom=DOCKERFILES, --dockerfiles=DOCKERFILES
+      List  of  dockerfiles  you  want to apply in order to create your virtual
+      disk/docker image. The list must be written like that: 
+      dockerfile1,dockerfile2,dockerfile3,...
+      The dockerfiles will be applied according to their position in  the  list
+      (i.e. dockerfile1 will be executed, then dockerfile2, and so on ...).
+      Here is the list of dockerfile you will find in the default directory:
+        clean
+           This dockerfile will  remove  unnecessary  packages,  all  temporary
+           files and all *.deb files downloaded by apt-get. This  dockerfile is
+           always executed before creating the final docker image  (or  virtual
+           disk image), so you don't really have to put it on your list.
+        install-extrapackages
+           This dockerfile will install extra packages. If you want to  use  it
+           you have to use -p  (or --packages, --install ...)  to  define  what
+           packages you want to add. However, if you use -p (or --package, ...)
+           the script will automatically execute this dockerfile  right  before
+           creating the final docker image/virtual disk. If you want to execute
+           it at another time, then you should put it  in  your  list. In  that
+           case, the script won't execute it at the end.
+        remove-packages
+           This dockerfile will remove packages. To indicate what packages  you
+           want to remove, you have to use --remove-packages. If you  don't use
+           it, no packages will  be  removed. Like  install-extrapackage,  this
+           dockerfile is normally executed at the end  of  the  script. If  you
+           want to execute it at another time, you should put it on your list.
+        with-buildeb
+           This dockerfile will install all the dependencies of  buildeb. It'll
+           not install buildeb. 
+        with-cosy
+           Dockerfile that creates an user named cosy.
+        with-jenkins-slave
+           Dockerfile that install and configure all the software you  need  to
+           create a  jenkins  slave. It  installs  buildeb,  slave-cosy  (which
+           contains all the scripts needed to build  and  create  packages  via
+           jenkins), docker.io and creates an  user  named  'jenkins'. It  also
+           adds an authorized_keys file in the directory /usr/home/jenkins/.ssh
+           of the docker image/virtual disk. You  can  find  this  file  in the
+           directory $KEYSDIR. 
+        with-kernel
+           Dockerfile that compiles a linux kernel and install a bootloader. It
+           also adds a password for root  (which is toor). This  dockerfile  is
+           mandatory if you want to create a vm. If you don't put  it  on  your
+           list, this script will execute it anyway. Consider yourself warned.
+        with-minimal
+           Dockerfile that forces apt-get  to  exclude  some  directories  when
+           installing packages. Thus, apt-get won't be able to create files  in
+           those directories. The list of excluded directories can  be found in
+           the file data/etc/dpkg/dpkg.cfg.d/01_nodoc. This allows us to reduce
+           the size of  installed  packages. This  dockerfile  also  reinstalls
+           every packages installed (in order to apply those  modifications  to
+           packages that have already  been  installed). We  recommend  you  to
+           execute this dockerfile before any other dockerfile that may install
+           packages, because this one takes quite some time.
+        without-recommends
+           This  Dockerfile  will  force  apt-get to never download and install
+           suggested or recommended packages (which aren't mandatory  at  all).
+           Dockerfiles used: without-recommends.
+        with-repo
+           This Dockerfile installs and configures all the software you need to
+           setup a debian repository. This includes: apache, mini-dinstall, and
+           dput. The configuration files used to configure those softwares  are
+           located    in   data/etc/apache2/sites-available/   (for   apache2),
+           data/home/repo/.ssh  (for  ssh), and  data/home/repo/  (for dput and
+           mini-dinstall). We  highly  recommend you to look at those files and
+           fill them correctly. This  dockerfile  also  creates  an  user named
+           'repo' and generates a key for the repo, which will be used to  sign
+           packages.  
  -D, --debug, --debug-mode
       Debug mode. 
  -f <format>, --format=FORMAT, --vm-format=FORMAT, --format-vm=FORMAT 
@@ -115,7 +202,7 @@ verbose_mode () {
 
 do_dockerfile () {
     dockerfile_name=$1;
-    cp dockerfiles/$dockerfile_name Dockerfile;
+    cp $DOCKERFILESDIR/$dockerfile_name Dockerfile;
     perl -pi -e 's/BASE_IMAGE/'"$TMPNAME"'/;' Dockerfile;
     case $dockerfile_name in
 	install-extrapackages)
@@ -134,11 +221,18 @@ do_dockerfile () {
 	    COSYTMP="`echo $COSYREPO | cut -d' ' -f1`";
 	    COSYTMP="`echo "$COSYTMP" | perl -ne 'print $1 if /^(.+)\/?/;'`";
 	    perl -pi -e 's!REPOSITORY!'"$COSYTMP"'!;' Dockerfile;;
+	with-kernel)
+	    KERNEL_DONE=true;;
 	*)
 	    echo ;;
     esac
+
     echo "Executing dockerfile $dockerfile_name ..."
     docker build -t $TMPNAME . | verbose_mode;
+    [ ${PIPESTATUS[0]} -ne 0 ] && {
+	echo "An error occured while executing dockerfile $dockerfile_name">&2;
+	exit 1;
+    }
     docker export $(docker run -d $TMPNAME echo)  | docker import - $TMPNAME
     rm Dockerfile;
     echo "Dockerfile $dockerfile_name successfuly executed !";
@@ -165,12 +259,12 @@ do_debian () {
 
 create_final_image () {
     echo "Creating image $NAME ...";
-    docker.io run -d $TMPNAME echo |xargs  docker export | \
-	docker import - $NAME >/dev/null
+    docker.io export $(docker.io run -d $TMPNAME echo) | \
+	docker.io import - $NAME >/dev/null | verbose_mode
     echo "Image $NAME created !";
-    docker.io rm -f $(docker.io ps -a -q) 2>/dev/null || :;
+    docker.io rm -f $(docker.io ps -a -q) 2>/dev/null | verbose_mode || :;
     [ "$REMOVE" == "yes" ] && {
-	docker.io rmi -f $TMPNAME;
+	docker.io rmi -f $TMPNAME | verbose_mode;
     }
 }
 
@@ -179,7 +273,7 @@ create_vm () {
     docker.io run -d $TMPNAME echo |xargs docker export > $NAME.tar
     echo "docker image successfuly exported";
 
-    docker.io rm -f $(docker.io ps -a -q) 2>/dev/null || :;
+    docker.io rm -f $(docker.io ps -a -q) 2>/dev/null | verbose_mode;
     [ "$REMOVE" == "yes" ] && {
 	docker.io rmi -f $TMPNAME | verbose_mode;
     }
@@ -212,6 +306,8 @@ create_vm () {
 
 f_seen=false;
 s_seen=false;
+b_seen=false;
+custom_seen=false;
 [ $# -eq 0 ] && {
     echo "You can't use this script without arguments">&2;
     echo "Use $0 --help for more informations">&2;
@@ -250,21 +346,37 @@ do
 		debian | cosy | buildeb | kernel | minimal | repo |\
                 jenkins-slave | without-recommends) 
 		    BRANCH="$2";;
+		custom:*)
+		    BRANCH="custom";
+		    DOCKERFILES=${2#custom:};
+		    DOCKERFILES="$(echo "$DOCKERFILES" | tr , ' ')";;
 		*)
 		    echo "Error: Unknown branch $2">&2;
 		    exit 1;;
 	    esac
+	    b_seen=true;
 	    shift 2;;
 	--branch=*)
 	    BRANCH=${1#--*=};
 	    case $BRANCH in
 		debian | cosy | buildeb | kernel | minimal | repo |\
                 jenkins-slave | without-recommends) 
-		    shift 1;;
+		    shift;;
+		custom:*)
+		    DOCKERFILES=${BRANCH#custom:};
+		    BRANCH="custom";
+		    DOCKERFILES="$(echo "$DOCKERFILES" | tr , ' ')";
+		    shift;;
 		*)
 		    echo "Error: Unknown branch $BRANCH">&2;
 		    exit 1;;
 	    esac;;
+	--custom=* | --dockerfiles=*)
+	    DOCKERFILES=${1#--*=};
+	    DOCKERFILES="$(echo "$DOCKERFILES" | tr , ' ')";
+	    BRANCH=custom;
+	    custom_seen=true;
+	    shift;;
 	-D|--debug|--debug-mode)
 	    DEBUGMODE=true;
 	    set -x;
@@ -458,29 +570,45 @@ done;
 
 if [ -z "$TYPE" ]
 then
-    echo "ERROR: You haven't specified what you want to create">&2;
-    echo "ERROR: You have to use -t">&2;
+    echo "Error: You haven't specified what you want to create">&2;
+    echo "Error: You have to use -t">&2;
     exit 5;
 fi
 
 if [ -z "$BRANCH" ]
 then
-    echo "ERROR: You haven't specified what kind of $TYPE you want to create"\
+    echo "Error: You haven't specified what kind of $TYPE you want to create"\
 >&2;
-    echo "ERROR: You have to use -b to specify it."
+    echo "Error: You have to use -b to specify it."
     exit 6;
 fi
 
+[[ $b_seen = true && $custom_seen = true ]] && {
+    echo "Error: You can't use -b (or --branch) and --custom \
+(or --dockerfiles) simultaneously">&2;
+    exit 1;
+}
+
+for dock in $DOCKERFILES
+do
+    [ ! -f "$DOCKERFILESDIR/$dock" ] && {
+	echo "Error: Couldn't find dockerfile $dock in $DOCKERFILESDIR/";
+	exit 1;
+    } || {
+	echo "Dockerfile $dock found !";
+    }
+done;
+
 if [ "$TYPE" == "image" ] && [ $f_seen = true ]
 then
-    echo "WARNING: You want to build a docker image, you shouldn't use -f";
-    echo "WARNING: -f option ignored";
+    echo "Warning: You want to build a docker image, you shouldn't use -f";
+    echo "Warning: -f option ignored";
 fi
 
 if [ "$TYPE" == "image" ] && [ $s_seen = true ]
 then
-    echo "WARNING: You want to build a docker image, you shouldn't use -s";
-    echo "WARNING: -s option ignored";
+    echo "Warning: You want to build a docker image, you shouldn't use -s";
+    echo "Warning: -s option ignored";
 fi
 
 are_you_root;
@@ -499,33 +627,18 @@ do_debian;
 
 case $BRANCH in
     debian)
-	[ "$TYPE" == "vm" ] && {
-	    do_dockerfile with-kernel;
-	}
-	;;
+	: ;;
     without-recommends)
-	do_dockerfile without-recommends;
-	[ "$TYPE" == "vm" ] && {
-	    do_dockerfile with-kernel;
-	}
-	;;	
+	do_dockerfile without-recommends;;	
     minimal)
 	do_dockerfile without-recommends;
-	do_dockerfile with-minimal;
-	[ "$TYPE" == "vm" ] && {
-	    do_dockerfile with-kernel;
-	}
-	;;
+	do_dockerfile with-minimal;;
     kernel)
 	do_dockerfile with-kernel;;
     buildeb)
 	do_dockerfile without-recommends;
 	do_dockerfile with-minimal;
-	do_dockerfile with-buildeb;
-	[ "$TYPE" == "vm" ] && {
-	    do_dockerfile with-kernel;
-	}
-	;;
+	do_dockerfile with-buildeb;;
     repo)
 	do_dockerfile without-recommends;
 	do_dockerfile with-minimal;
@@ -540,6 +653,12 @@ case $BRANCH in
 	do_dockerfile without-recommends;
 	do_dockerfile with-kernel;
 	do_dockerfile with-cosy;;
+    custom)
+	for dock in $DOCKERFILES
+	do
+	    do_dockerfile $dock;
+	done;
+	;;
     *)
 	echo "should not be";;
 esac
@@ -559,5 +678,9 @@ if [ "$TYPE" == "image" ]
 then
     create_final_image;
 else
+    [ $KERNEL_DONE = false ] && {
+	do_dockerfile with-kernel;
+	do_dockerfile clean;
+    } 
     create_vm;
 fi
