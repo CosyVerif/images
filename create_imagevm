@@ -61,7 +61,8 @@ Options :
            without-recommends, with-minimal, with-kernel, with-jenkins-slave.
         without-recommends 
            Create a virtual disk/docker image which doesn't install recommended
-           or suggested packages when you want to install a package.
+           or  suggested   packages  when   you  want  to  install  a  package.
+           Dockerfiles used: without-recommends.
         custom:DOCKERFILES
            Create a custom virtual disk/docker image. You can choose to use any
            dockerfile you want, as long as they're in the following  directory:
@@ -129,7 +130,6 @@ Options :
         without-recommends
            This  Dockerfile  will  force  apt-get to never download and install
            suggested or recommended packages (which aren't mandatory  at  all).
-           Dockerfiles used: without-recommends.
         with-repo
            This Dockerfile installs and configures all the software you need to
            setup a debian repository. This includes: apache, mini-dinstall, and
@@ -140,6 +140,9 @@ Options :
            fill them correctly. This  dockerfile  also  creates  an  user named
            'repo' and generates a key for the repo, which will be used to  sign
            packages.  
+ -d <directory>, --directory=DIR, --dockerfiles-dir=DIR
+      Path  leading  to  the  directory  that contains all dockerfiles. Default
+      value: $DOCKERFILESDIR.
  -D, --debug, --debug-mode
       Debug mode. 
  -f <format>, --format=FORMAT, --vm-format=FORMAT, --format-vm=FORMAT 
@@ -390,6 +393,26 @@ do
 	    BRANCH=custom;
 	    custom_seen=true;
 	    shift;;
+	-d)
+	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
+		&& {
+		echo "Error: -d option requires an argument">&2;
+		exit 1;
+	    }
+	    [ ! -d $2 ] && {
+		echo "Directory $2 doesn't exist">&2;
+		exit 1;
+	    }
+	    DOCKERFILESDIR=${2%/};
+	    shift 2;;
+	--directory=* | --dockerfiles-dir=*)
+	    DOCKERFILESDIR=${1#--*=};
+	    [ ! -d "$2" ] && {
+		echo "Directory $DOCKERFILESDIR doesn't exist">&2;
+		exit 1;
+	    }
+	    DOCKERFILESDIR=${DOCKERFILESDIR%/};
+	    shift;;
 	-D|--debug|--debug-mode)
 	    DEBUGMODE=true;
 	    set -x;
@@ -532,7 +555,7 @@ do
 		exit 1;
 	    }
 	    [[ "$2" != "image" && "$2" != "vm" ]] && {
-		echo "Error: Unknow type $2 for -t option">&2;
+		echo "Error: Unknown type $2 for -t option">&2;
 		exit 1;
 	    }
 	    TYPE=$2;
@@ -540,7 +563,7 @@ do
 	--type=*)
 	    TYPE=${1#--*=};
 	    [[ "$TYPE" != "image" && "$TYPE" != "vm" ]] && {
-		echo "Error: Unknow type $TYPE for --type option">&2;
+		echo "Error: Unknown type $TYPE for --type option">&2;
 		exit 1;
 	    }
 	    shift;;
