@@ -1,0 +1,92 @@
+#This file is a configuration file for the script create_imagevm.
+#If you want to use it, you have to launch the said script this way:
+#create_imagevm -c <path/to/this/file>.
+
+#Make sure to read what follows carefully, and fill every field appropriately
+
+#This field concerns the archicture of the docker image/virtual disk that
+#will be created. It can either be amd64 or i386.
+ARCHITECTURE : amd64
+
+#Type of the thing you want to create. You can either create a docker image
+#or a virtual disk image. Thus, the values you can put in the field TYPE are :
+# - image
+# - vm
+#** This field must be filled ! **
+TYPE : image
+
+#This field allows you to specify what kind of virtual disk/docker image
+#you want to create, or a list of dockerfiles you want to apply.
+#BRANCH must take one of these values : debian, cosy, buildeb, kernel, minimal,
+#repo, jenkins-slave, without-recommends, custom. (For more information
+#use create_imagevm -h). If you choose custom, then you have to give us the
+#list of dockerfiles you want to apply to the base image. Here is the list
+#of the dockerfiles provided with this script : clean, install-extrapackages,
+#remove-packages, with-buildeb, with-cosy, with-jenkins-slave, with-kernel,
+#with-minimal, without-recommends, with-repo. You can use your own dockerfiles
+#if you want. You just have to make sure that every dockerfile you want to use
+#is located in the directory DOCKERFILESDIRECTORY. (use create_imagevm -h for
+#more informations). 
+#If you use custom, it means that you want to choose what are the dockerfiles
+#that will be executed.
+#The syntax for the value custom is different from the others because you have
+#to tell us what are the dockerfiles you want to use. You have to use one these
+#three syntax :
+#
+#BRANCH : custom dockerfile1 dockerfile2 ... | BRANCH :
+#------------------------------------------- |   - custom  
+#BRANCH :                                    |   - dockerfile1
+#  - custom : dockerfile1 dockerfile2 ...    |   - dockerfile2
+#                                            |   - ...
+#
+# The dockerfiles will be executed in the same order you put them, so be 
+#careful.
+BRANCH : custom with-minimal
+
+#This field allows you to choose where the dockerfiles are located.
+DOCKERFILESDIRECTORY : ./dockerfiles/
+
+#Debug mode. The value can only be true or false.
+DEBUGMODE : false
+
+#Format of the virtual disk image. It must be one of these: vmdk, qcow2, qcow,
+#or raw
+VMFORMAT : vmdk
+
+#Name of the virtual disk/docker image. If you leave it empty, the name will
+#be: 
+# - <BRANCH>:<DEBIANVERSION>-<ARCHI> for a dockerimage
+# - <BRANCH>.<DEBIANVERSION>.<ARCHI>.<VMFORMAT> for a virtual disk image
+NAME : 
+
+#List of extra packages to install. You can leave it empty
+EXTRAPACKAGES :
+
+#This field allows you to choose if temporary files/images will be removed. 
+#If you put "yes", it means all temporary files/images will be removed. If you
+#put 'no', we won't remove those files.
+REMOVE : yes
+
+#Address and section of the repository that contains cosyverif related 
+#packages. The first element must be the address, and the second must be the
+#section. The section have to be consistent with the debian version you want to
+#install
+REPOSITORY :
+  - http://cosyverif-debian.lip6.fr/
+  - jessie-testing/
+
+#List of packages to remove. You can leave it empty.
+REMOVEPACKAGES : 
+
+#Size of the virtual disk image.
+SIZE : 5G
+
+#Version of debian you want to use. You can't use a version number. It can only
+#be a release code name (wheezy, jessie, ...) or a symbolic name (stable, 
+#testing, ...).
+DEBIANVERSION : jessie
+
+#Verbose mode. It can only be true or false.
+VERBOSEMODE : false
+
+
