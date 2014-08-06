@@ -14,7 +14,7 @@ REMOVE="yes";
 COSYREPO="http://cosyverif-debian.lip6.fr jessie-testing/";
 DEBUGMODE=false;
 VERBOSEMODE=false;
-DOCKERFILESDIR="dockerfiles";
+DOCKERFILESDIR="./dockerfiles";
 DOCKERFILES="";
 KEYSDIR="data/home/repo/.ssh/";
 
@@ -139,6 +139,9 @@ Options :
            fill them correctly. This  dockerfile  also  creates  an  user named
            'repo' and generates a key for the repo, which will be used to  sign
            packages.  
+ -c <configuration_file>, --configuration-file=FILE
+      Path leading to a configuration file. It's not mandatory. If you use one,
+      every options after this one will be ignored.
  -d <directory>, --directory=DIR, --dockerfiles-dir=DIR
       Path  leading  to  the  directory  that contains all dockerfiles. Default
       value: $DOCKERFILESDIR.
@@ -435,6 +438,42 @@ do
 	    BRANCH=custom;
 	    custom_seen=true;
 	    shift;;
+	-c)	    
+	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
+		&& {
+		echo "Error: -c option requires an argument">&2;
+		exit 1;
+	    }
+	    [ ! -f $2 ] && {
+		echo "Error: $2 doesn't exist">&2;
+		exit 1;
+	    }
+	    VARS="$(./scripts/conf_parser.pl $2)";
+	    [ $? -ne 0 ] && {
+		echo "An error occured while parsing the configuration file:\
+ $VARS">&2;
+		exit 1;
+	    } || {
+		eval "$VARS";
+		break;
+	    }
+	    ;;
+	--configuration-file=*)
+	    CONFFILE=${1#--*=};
+	    [ ! -f "$CONFFILE" ] && {
+		echo "Error: $2 doesn't exist">&2;
+		exit 1;
+	    }	    
+	    VARS="$(./scripts/conf_parser.pl $CONFFILE)";
+	    [ $? -ne 0 ] && {
+		echo "An error occured while parsing the configuration file:\
+ $VARS">&2;
+		exit 1;
+	    } || {
+		eval "$VARS";
+		break;
+	    }
+	    ;;
 	-d)
 	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
 		&& {
