@@ -44,6 +44,7 @@ elsif (/^\s*(with-minimal|with-kernel|with-buildeb|without-recommends|with-repo|
     print $yellow,$_,$reset;
 }
 elsif(/^\s*custom:DOCKERFILES\s*$/){
+    $dockerfiles=0;
     my @tab=split /:/; print $green,$tab[0],$reset,":",$yellow, $tab[1],$reset;
 }
 elsif(/Dockerfiles\s*used/ || $dockerfiles==1){
