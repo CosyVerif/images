@@ -17,7 +17,6 @@ VERBOSEMODE=false;
 DOCKERFILESDIR="dockerfiles";
 DOCKERFILES="";
 KEYSDIR="data/home/repo/.ssh/";
-KERNEL_DONE=false;
 
 usage(){
     scripts/color_help.pl << EOF
@@ -186,12 +185,14 @@ Options :
 EOF
 }
 
+#Function that checks if the user is root.
 are_you_root () {
     [ ${EUID:=1000} -ne 0 ] && {
 	echo "Error: You have to be root to run this script" >&2 ;
 	exit 1 ;
     }
 }
+
 
 verbose_mode () {
     [ $VERBOSEMODE = true ] && {
@@ -201,29 +202,51 @@ verbose_mode () {
     }
 }
 
+#Function that executes a dockerfiles. Needs one argument: the name of the
+#dockerfile that is going to be executed.
 do_dockerfile () {
     dockerfile_name=$1;
+   
+    #Moving the dockerfile from its original location to the current directory
+    #We give it the name Dockerfile so that we will be able to add files in the
+    #image that will be created. Indeed, it is impossible to add files in a
+    #docker image if we give the dockerfile to docker on its standard input.
     cp $DOCKERFILESDIR/$dockerfile_name Dockerfile;
+
+    #Changing the name of the docker image that will be used to create the next
+    #one. Every dockerfile begins with the line "FROM BASE_IMAGE", so it's
+    #pretty easy to change the base image to what we want.
     perl -pi -e 's/BASE_IMAGE/'"$TMPNAME"'/;' Dockerfile;
+
     case $dockerfile_name in
+	#if we're going to execute the dockerfile install-extrapackages, then
+	#we have to indicate what packages have to be installed. Plus, we also
+	#have to add the cosyverif repository in the file /etc/apt/sources.list
 	install-extrapackages)
 	    perl -pi -e 's/PACKAGES/'"$EXTRAPACKAGES"'/;' Dockerfile;
 	    perl -pi -e 's!REPOSITORY SUITE!'"$COSYREPO"'!;' Dockerfile;
 	    COSYTMP="`echo $COSYREPO | cut -d' ' -f1`";
 	    COSYTMP="`echo "$COSYTMP" | perl -ne 'print $1 if /^(.+)\/?/;'`";
 	    perl -pi -e 's!REPOSITORY!'"$COSYTMP"'!;' Dockerfile;;
+
+	#Replacing PACKAGES by the list of packages we want to remove
 	remove-packages)
 	    perl -pi -e 's/PACKAGES/'"$REMOVEPACKAGES"'/;' Dockerfile;;
+
+	#Removing useless images
 	clean)
 	    docker.io rmi -f $(docker.io images | grep "^<none>" | awk \
-		'{print $3}') 2>/dev/null | verbose_mode;;	
+		'{print $3}') 2>/dev/null | verbose_mode;;
+
+	#If we're going to executed either with-repo or with-jenkins-slave,
+	#then we need to add the cosyverif repository in /etc/apt/sources.list
+	#because those dockerfiles needs to download stuff that can only be 
+	#found there.
 	with-repo | with-jenkins-slave)
 	    perl -pi -e 's!REPOSITORY SUITE!'"$COSYREPO"'!;' Dockerfile;
 	    COSYTMP="`echo $COSYREPO | cut -d' ' -f1`";
 	    COSYTMP="`echo "$COSYTMP" | perl -ne 'print $1 if /^(.+)\/?/;'`";
 	    perl -pi -e 's!REPOSITORY!'"$COSYTMP"'!;' Dockerfile;;
-	with-kernel)
-	    KERNEL_DONE=true;;
 	*)
 	    echo ;;
     esac
@@ -236,13 +259,19 @@ do_dockerfile () {
 	exit 1;
     }
 
-    docker export $(docker run -d $TMPNAME echo)  | docker import - $TMPNAME
+    #We export the docker image created, and we import it. It allows us to
+    #reduce the size of the docker image.
+    docker export $(docker run -d $TMPNAME echo)  | docker import - $TMPNAME |\
+verbose_mode;
     rm Dockerfile;
     echo "Dockerfile $dockerfile_name successfuly executed !";
+
+    #Removing useless containers.
     docker.io rm -f $(docker.io ps -a -q) 2>/dev/null | verbose_mode;
 }
 
 do_debian () {
+    #Downloading a minimal debian system.
     echo "Downloading Debian ...";
     /usr/share/docker.io/contrib/mkimage-debootstrap.sh \
 	-v minbase \
@@ -261,13 +290,18 @@ do_debian () {
     [ "$REMOVE" == "yes" ] && {
 	rm debiantarball.createimvm.tmp.tar;
     }
-
+    
+    #We then execute the dockerfile remove-useless-packages which will try to 
+    #remove every packages. apt-get will prevent us from removing essential 
+    #packages, so it's pretty much harmless, and it allows us to reduce the 
+    #size of the docker image.
     echo "Removing useless packages";
     do_dockerfile remove-useless-packages;
     echo "Useless packages removed !";
 }
 
 create_final_image () {
+    #Changing the name of the docker image to NAME
     echo "Creating image $NAME ...";
     docker.io export $(docker.io run -d $TMPNAME echo) | \
 	docker.io import - $NAME >/dev/null | verbose_mode
@@ -280,7 +314,8 @@ create_final_image () {
 
 create_vm () {
     echo "Exporting docker image ..."
-    docker.io run -d $TMPNAME echo |xargs docker export > $NAME.tar
+    docker.io run -d $TMPNAME echo |xargs docker export > $NAME.tar | \
+	verbose_mode;
     echo "docker image successfuly exported";
 
     docker.io rm -f $(docker.io ps -a -q) 2>/dev/null | verbose_mode;
@@ -307,6 +342,7 @@ create_vm () {
 	}	
     }
 
+    #Creating the virtual disk image.
     genvm $genvmopts -a $ARCHI -d $NAME.tar.gz -e -f $VMFORMAT -s $SIZE $NAME
     [ $? -ne 0 ] && {
 	echo "An error occured while creating the virtual disk image">&2;
@@ -324,6 +360,8 @@ f_seen=false;
 s_seen=false;
 b_seen=false;
 custom_seen=false;
+
+#Checking if there are any arguments
 [ $# -eq 0 ] && {
     echo "You can't use this script without arguments">&2;
     echo "Use $0 --help for more informations">&2;
@@ -334,11 +372,14 @@ while [ ! -z "$1" ]
 do
     case $1 in 
 	-a)
+	    #Checking if the next argument is not an option (or empty)
 	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
 		&&  {
 		echo "Error: -a option requires an argument">&2;
 		exit 1;
 	    }
+
+	    #Checking if the second argument is correct
 	    [[ "$2" != "amd64" && "$2" != "i386" ]] && {
 		echo "Error: Unknown architecture $2";
 		exit 1;
@@ -346,6 +387,7 @@ do
 	    ARCHI=$2;
 	    shift 2;;
 	--arch=*|--architecture=*)
+	    #Removing --arch= from $1 (or --architecture=)
 	    ARCHI=${1#--*=};
 	    [[ "$ARCHI" != "amd64" && "$ARCHI" != "i386" ]] && {
 		echo "Error: Unknown architecture $ARCHI";
@@ -573,7 +615,10 @@ do
 		echo "Error: -v option requires an argument">&2;
 		exit 1;
 	    }
-	    
+
+	    #If the version of debian specified by the user is a number, we
+	    #quit because we know we won't be able to downloading via 
+	    #mk-imagedebootstrap. 
 	    [[ "$2" =~ ^([0-9]+\.?)+$ ]] && {
 		echo "Error: You can't use a version number for -v">&2;
 		exit 1;
@@ -619,12 +664,15 @@ then
     exit 6;
 fi
 
+#If -b and --custom has been used, we quit because you shoudn't use them
+#together.
 [[ $b_seen = true && $custom_seen = true ]] && {
     echo "Error: You can't use -b (or --branch) and --custom \
 (or --dockerfiles) simultaneously">&2;
     exit 1;
 }
 
+#Checking if the dockerfiles given to us by the user exist.
 for dock in $DOCKERFILES
 do
     [ ! -f "$DOCKERFILESDIR/$dock" ] && {
@@ -649,6 +697,7 @@ fi
 
 are_you_root;
 
+#If -n hasn't been used, we create a default name.
 if [ -z "$NAME" ]
 then
     if [ "$TYPE" == "image" ]
@@ -714,9 +763,13 @@ if [ "$TYPE" == "image" ]
 then
     create_final_image;
 else
-    [ $KERNEL_DONE = false ] && {
+    #if the image we've been creating has no kernel, we execute with-kernel
+    #to create one, because if we don't, the virtual disk image won't work.
+    docker run $TMPNAME /bin/bash -c "ls vmlinuz* || ls /boot/vmlinuz*"
+    [ $? -ne 0 ] && {
 	do_dockerfile with-kernel;
 	do_dockerfile clean;
     } 
+
     create_vm;
 fi
