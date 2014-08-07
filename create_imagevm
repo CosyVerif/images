@@ -1,6 +1,7 @@
 #! /bin/bash
 
 VMFORMAT=vmdk;
+BASEIMAGE="";
 TYPE="";
 NAME="";
 ARCHI=amd64;
@@ -17,7 +18,8 @@ VERBOSEMODE=false;
 DOCKERFILESDIR="./dockerfiles";
 DOCKERFILES="";
 KEYSDIR="data/home/repo/.ssh/";
-
+EXTRAPACKAGESDONE=false;
+REMOVEPACKAGESDONE=false;
 usage(){
     scripts/color_help.pl << EOF
 Usage : $0 [OPTIONS]
@@ -151,6 +153,9 @@ Options :
       Indicate what type of virtual disk image to create. Can be  one of these:
       vmdk, qcow2, qcow, raw. Default: $VMFORMAT.
       If you want to build a docker image, you must not use this option.
+ -F <image>, --from=IMAGE
+      Docker image on which all dockerfiles will be  executed. Debian  won't  be
+      downloaded in this case.
  -h, --help       
       Print this
  -n <name>, --name=NAME
@@ -226,15 +231,29 @@ do_dockerfile () {
 	#we have to indicate what packages have to be installed. Plus, we also
 	#have to add the cosyverif repository in the file /etc/apt/sources.list
 	install-extrapackages)
-	    perl -pi -e 's/PACKAGES/'"$EXTRAPACKAGES"'/;' Dockerfile;
-	    perl -pi -e 's!REPOSITORY SUITE!'"$COSYREPO"'!;' Dockerfile;
-	    COSYTMP="`echo $COSYREPO | cut -d' ' -f1`";
-	    COSYTMP="`echo "$COSYTMP" | perl -ne 'print $1 if /^(.+)\/?/;'`";
-	    perl -pi -e 's!REPOSITORY!'"$COSYTMP"'!;' Dockerfile;;
+	    [ ! -z "$EXTRAPACKAGES" ] && {
+		perl -pi -e 's/PACKAGES/'"$EXTRAPACKAGES"'/;' Dockerfile;
+		perl -pi -e 's!REPOSITORY SUITE!'"$COSYREPO"'!;' Dockerfile;
+		COSYTMP="`echo $COSYREPO | cut -d' ' -f1`";
+		COSYTMP=${COSYTMP%/};
+		perl -pi -e 's!REPOSITORY!'"$COSYTMP"'!;' Dockerfile
+		EXTRAPACKAGESDONE=true;
+	    } || {
+		rm Dockerfile;
+		return;
+	    }
+	    ;;
 
 	#Replacing PACKAGES by the list of packages we want to remove
 	remove-packages)
-	    perl -pi -e 's/PACKAGES/'"$REMOVEPACKAGES"'/;' Dockerfile;;
+	    [ ! -z "$REMOVEPACKAGES" ] && {
+		perl -pi -e 's/PACKAGES/'"$REMOVEPACKAGES"'/;' Dockerfile;
+		REMOVEPACKAGESDONE=true;
+	    } || {
+		rm Dockerfile;
+		return;
+	    } 
+	    ;;
 
 	#Removing useless images
 	clean)
@@ -524,6 +543,17 @@ do
                     >&2;
 		    exit 1;;
 	    esac;;
+	-F)
+	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
+		&& {
+		echo "Error: -F option requires an argument">&2;
+		exit 1;
+	    }
+	    BASEIMAGE="$2";
+	    shift 2;;
+	--from=*)
+	    BASEIMAGE=${1#--*=};
+	    shift;;
 	-h | --help)
 	    usage;
 	    exit 0;;
@@ -746,9 +776,16 @@ then
 	NAME="$BRANCH.$DEBIANVERSION.$ARCHI.$VMFORMAT";
     fi
 fi
- 
-do_debian;
-
+[ -z "$BASEIMAGE" ] && {
+    do_debian;
+} || {
+    docker export $(docker run -d $BASEIMAGE  echo) | docker import - $TMPNAME;
+    [ $? -ne 0 ] && {
+	echo "Error while importing image $BASEIMAGE">&2;
+	echo "Maybe it doesn't exist ?">&2;
+	exit 1;
+    }
+}
 case $BRANCH in
     debian)
 	: ;;
@@ -787,12 +824,11 @@ case $BRANCH in
 	echo "should not be";;
 esac
 
-if [ ! -z "$EXTRAPACKAGES" ]
-then
+[[ ! -z "$EXTRAPACKAGES" && $EXTRAPACKAGESDONE = false ]] && {
     do_dockerfile install-extrapackages;
-fi
+}
 
-[ ! -z "$REMOVEPACKAGES"] && {
+[[ ! -z "$REMOVEPACKAGES" && $REMOVEPACKAGESDONE = false ]] && {
     do_dockerfile remove-packages;
 }
 
