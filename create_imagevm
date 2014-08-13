@@ -154,7 +154,7 @@ Options :
       vmdk, qcow2, qcow, raw. Default: $VMFORMAT.
       If you want to build a docker image, you must not use this option.
  -F <image>, --from=IMAGE
-      Docker image on which all dockerfiles will be  executed. Debian  won't  be
+      Docker image on which all dockerfiles will be  executed. Debian  won't be
       downloaded in this case.
  -h, --help       
       Print this
@@ -542,7 +542,8 @@ do
 		    echo "Error: Unknown virtual disk image format $VMFORMAT"\
                     >&2;
 		    exit 1;;
-	    esac;;
+	    esac
+	    f_seen=true;;
 	-F)
 	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
 		&& {
