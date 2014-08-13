@@ -1,0 +1,228 @@
+#! /bin/bash
+
+ARCHI=amd64;
+DOCKERFILESDIR="dockerfiles";
+VMFORMAT="vmdk";
+DEBUGMODE=false;
+SLAVENAME="";
+REPONAME="";
+VERBOSEMODE=false;
+SIZE="5G";
+DEBIANVERSION="jessie";
+
+usage(){
+    scripts/color_help.pl <<EOF
+Usage : $0 [OPTIONS]
+Creates a slave machine for Jenkins and a repository for debian packages.
+** You have to be root in order to execute this command ! **
+
+Options :
+ -a <archi>, --arch=ARCH, --architecture=ARCH  
+      Architecture. It can either be amd64 or i386. Default: $ARCHI
+ -d <directory>, --directory=DIR, --dockerfiles-dir=DIR
+      Path  leading  to  the  directory  that contains all dockerfiles. Default
+      value: $DOCKERFILESDIR. 
+ -D, --debug, --debug-mode
+      Debug mode. 
+ -f <format>, --format=FORMAT, --vm-format=FORMAT, --format-vm=FORMAT 
+      Indicate what type of virtual disk image to create. Can be  one of these:
+      vmdk, qcow2, qcow, raw. Default: $VMFORMAT.
+ -h, --help       
+      Print this
+ --slave-name=NAME, --jenkins-slave=NAME
+      Name of the virtual  disk  image  that will  contain the  jenkins  slave.
+      Default: jenkins-slave.<format>
+ --repository-name=NAME, --repo-name=NAME
+      Name of  the  virtual  disk  image  that  will  contain  the  repository.
+      Default: repository.<format>
+ -s <size>, --size=SIZE, --vmsize=SIZE, --sizevm=SIZE 
+      Size of the virtual disk image. Default : $SIZE.
+ -v <version>, --version=VER, --debian-version=VER, --release=VER
+      What Debian  version you  want to use to create your docker image or your
+      virtual  disk  image.  It  must  either  be a release code name (squeeze,
+      wheezy, ...) or a symbolic name (stable, testing, unstable, ...). Default
+      value: $DEBIANVERSION.
+ -V, --verbose, --verbose-mode
+      Verbose mode
+EOF
+}
+while [ ! -z "$1" ]
+do
+    case $1 in 
+	-a)
+	    #Checking if the next argument is not an option (or empty)
+	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
+		&&  {
+		echo "Error: -a option requires an argument">&2;
+		exit 1;
+	    }
+
+	    #Checking if the second argument is correct
+	    [[ "$2" != "amd64" && "$2" != "i386" ]] && {
+		echo "Error: Unknown architecture $2";
+		exit 1;
+	    } 
+	    ARCHI=$2;
+	    shift 2;;
+	--arch=*|--architecture=*)
+	    #Removing --arch= from $1 (or --architecture=)
+	    ARCHI=${1#--*=};
+	    [[ "$ARCHI" != "amd64" && "$ARCHI" != "i386" ]] && {
+		echo "Error: Unknown architecture $ARCHI";
+		exit 1;
+	    } 
+	    shift;;
+	-d)
+	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
+		&& {
+		echo "Error: -d option requires an argument">&2;
+		exit 1;
+	    }
+	    [ ! -d $2 ] && {
+		echo "Directory $2 doesn't exist">&2;
+		exit 1;
+	    }
+	    DOCKERFILESDIR=${2%/};
+	    shift 2;;
+	--directory=* | --dockerfiles-dir=*)
+	    DOCKERFILESDIR=${1#--*=};
+	    [ ! -d "$2" ] && {
+		echo "Directory $DOCKERFILESDIR doesn't exist">&2;
+		exit 1;
+	    }
+	    DOCKERFILESDIR=${DOCKERFILESDIR%/};
+	    shift;;	
+	-D|--debug|--debug-mode)
+	    DEBUGMODE=true;
+	    set -x;
+	    shift;;
+	-f)
+	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
+		&& {
+		echo "Error: -f option requires an argument">&2;
+		exit 1;
+	    }
+	    
+	    case $2 in
+		vmdk | qcow | qcow2 | raw) 
+		    VMFORMAT="$2";;
+		*)
+		    echo "Error: Unknown virtual disk image format $2">&2;
+		    exit 1;;
+	    esac
+	    shift 2;;
+	--format=* | --vm-format=* | --format-vm=*)
+	    VMFORMAT=${1#--*=};
+	    case $VMFORMAT in
+                vmdk | qcow | qcow2 | raw) 
+		    shift 1;;
+		*)
+		    echo "Error: Unknown virtual disk image format $VMFORMAT"\
+                    >&2;
+		    exit 1;;
+	    esac;;
+	-h | --help)
+	    usage;
+	    exit 0;;
+	--slave-name=* | --jenkins-slave=*)
+	   SLAVENAME=${1#--*=};
+	   [ -z "$NAME" ] && {
+	       echo "Error: Invalid name for ${1%=*}">&2;
+	       exit 1;
+	   } || { 
+	       shift 1;
+	   }
+	   ;;
+	--repo-name=* | --repository-name=*)
+	   REPONAME=${1#--*=};
+	   [ -z "$NAME" ] && {
+	       echo "Error: Invalid name for ${1%=*}">&2;
+	       exit 1;
+	   } || { 
+	       shift 1;
+	   }
+	   ;;
+	-s)
+	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
+		&& {
+		echo "Error: -s option requires an argument">&2;
+		exit 1;
+	    }
+	    SIZE="$2";
+	    shift 2;;
+	--size=* | --vmsize=* | --sizevm=*)
+	    SIZE={$1#--*=};
+	    [ -z "$SIZE" ] && {
+		echo "Error: Invalid size for ${1%=*} option">&2;
+		exit 1;
+	    } || {
+		shift;
+	    }
+	    ;;
+	-v)
+	    ([ -z "$2" ] || [[ "$2" =~ ^-[a-zA-Z] || "$2" =~ ^--[a-zA-Z]* ]]) \
+		&& {
+		echo "Error: -v option requires an argument">&2;
+		exit 1;
+	    }
+
+	    #If the version of debian specified by the user is a number, we
+	    #quit because we know we won't be able to downloading via 
+	    #mk-imagedebootstrap. 
+	    [[ "$2" =~ ^([0-9]+\.?)+$ ]] && {
+		echo "Error: You can't use a version number for -v">&2;
+		exit 1;
+	    }
+	    DEBIANVERSION="$2";
+	    shift 2;;
+	--version=* | --debian-version=* | --release=*)
+	    DEBIANVERSION=${1#--*=};
+	    [[ "$2" =~ ^([0-9]+\.?)+$ ]] && {
+		echo "Error: You can't use a version number for -v">&2;
+		exit 1;
+	    }
+	    shift;;
+	-V | --verbose | --verbose-mode)
+	    VERBOSEMODE=true;
+	    shift;;
+	--*)
+	    echo "Unknown option ${1%=*}">&2;
+	    echo "Use $0 --help for more informations">&2;
+	    exit 1;;
+	-*)
+	    echo "Unknown option $1">&2;
+	    echo "Use $0 --help for more informations">&2;
+	    exit 1;;
+	*)
+	    exit;;
+
+    esac
+done;
+ 
+[ $VERBOSEMODE = true ] && {
+    [ $DEBUGMODE = true ] && {
+	otheropts="-V -D";
+    } || {
+	otheropts="-V";
+    }
+} || {
+    [ $DEBUGMODE = true ] && {
+	otheropts="-D";
+    } || {
+	otheropts="";
+    }
+}	
+
+[ -z "$REPONAME" ] && {
+    REPONAME="repository.$VMFORMAT";
+}
+
+[ -z "$SLAVENAME" ] && {
+    SLAVENAME="jenkins-slave.$VMFORMAT";
+}
+
+./create_imagevm -a $ARCHI -d $DOCKERFILESDIR $otheropts -t image -n base:testing-amd64 --custom=without-recommends,with-minimal,with-kernel -v $DEBIANVERSION 
+
+./create_imagevm -a $ARCHI -d $DOCKERFILESDIR -f $VMFORMAT $otheropts -t vm -n $SLAVENAME --custom=with-jenkins-slave -F base:testing-amd64 -s $SIZE
+
+./create_imagevm -a $ARCHI -d $DOCKERFILESDIR -f $VMFORMAT $otheropts -t vm -n $REPONAME --custom=with-repo -F base:testing-amd64 -s $SIZE
