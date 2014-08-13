@@ -14,9 +14,8 @@ RUN apt-get install -y --force-yes adduser gnupg devscripts dput coreutils repo-
 RUN useradd -m -d /home/repo -s /bin/bash repo
 
 # Configure apache
-ADD ./data/etc/apache2/sites-available/repository /etc/apache2/sites-available/repository
-#RUN a2dissite default
-RUN a2ensite repository
+ADD ./data/etc/apache2/sites-available/repository /etc/apache2/sites-available/repository.conf
+RUN ln -s /etc/apache2/sites-enabled/repository.conf ../sites-available/repository.conf
 
 # Set user to repo
 USER repo

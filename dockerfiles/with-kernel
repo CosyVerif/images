@@ -22,6 +22,8 @@ RUN apt-get install -y --force-yes extlinux syslinux-common
 # RUN mkdir /boot/extlinux
 ADD ./data/boot/extlinux /boot/extlinux
 
+ADD ./data/etc/rc.local /etc/rc.local
+
 # Give a password to root
 RUN echo "root:toor" | chpasswd
 
