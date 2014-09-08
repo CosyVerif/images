@@ -29,6 +29,6 @@ RUN gpasswd -a jenkins docker
 USER jenkins
 
 # add ssh key of master
-ADD ./data/home/repo/.ssh/authorized_keys /home/repo/.ssh/authorized_keys
+ADD ./data/home/jenkins/.ssh/authorized_keys /home/jenkins/.ssh/authorized_keys
 
 
