@@ -3,7 +3,7 @@ MAINTAINER redha.gouicem@gmail.com
 
 # install jre, buildeb, slave-cosy, docker
 RUN apt-get update
-RUN apt-get install -y wget dropbear
+RUN apt-get install -y wget openssh-client
 RUN echo 'deb REPOSITORY SUITE' >> /etc/apt/sources.list
 RUN wget -O - REPOSITORY/gpgkey | apt-key add -
 RUN apt-get update
