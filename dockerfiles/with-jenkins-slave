@@ -17,6 +17,9 @@ RUN mv /etc/apt/sources.list.tmp /etc/apt/sources.list
 RUN ln -sf /usr/bin/docker.io /usr/local/bin/docker
 RUN apt-get update
 
+# add docker config file
+ADD data/etc/default/docker.io /etc/default/docker.io
+
 # create jenkins user, add in docker group
 RUN useradd -m -d /home/jenkins -s /bin/bash jenkins
 RUN groupadd docker || :
