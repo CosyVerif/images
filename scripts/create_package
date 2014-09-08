@@ -1,7 +1,8 @@
 #! /bin/bash
 
 _REPO=cosyverif@cosyverif-debian.lip6.fr
-
+export images="saucisson/with-minimal:testing-amd64 saucisson/with-minimal:testing-i386 mbittan/with-minimal:stable-amd64 mbittan/with-minimal:stable-i386 mbittan/with-minimal:unstable-i386 mbittan/with-minimal:unstable-amd64"
+package_images="mbittan/buildeb-minimal:testing-amd64 mbittan/buildeb-minimal:testing-i386 mbittan/buildeb-minimal:unstable-amd64 mbittan/buildeb-minimal:unstable-i386 mbittan/buildeb-minimal:stable-amd64 mbittan/buildeb-minimal:stable-i386"
 start=`date -R`
 leaveunclean=0;
 buildonly=0;
@@ -42,7 +43,7 @@ shift $(( OPTIND - 1 ))
 OPTIND=1
 
 if [ $packonly -eq 0 ]; then
-    /home/jenkins/docker_build -c $CONFIGFILE -d $MAKEFILEDIR
+    docker_build -c $CONFIGFILE -d $MAKEFILEDIR
     if [ $? -ne 0 ]; then
 	exit 1;
     fi
@@ -54,12 +55,11 @@ if [ $buildonly -eq 1 ]; then
     exit 0
 fi
 
-#images="saucisson/with-minimal:testing-amd64 saucisson/with-minimal:testing-i386"
-images="mbittan/buildeb-minimal:testing-amd64 mbittan/buildeb-minimal:testing-i386"
+
 i=0;
 
 # add current dir to base images in /build
-for im in $images
+for im in $package_images
 do
     tags[$i]=`echo $im | cut -d':' -f2 | cut -d'-' -f1`
     echo "FROM $im" > Dockerfile
@@ -80,7 +80,7 @@ eval `/usr/share/buildeb/config_parser $CONFIGFILE $MAKEFILEDIR`
 # create each dockerfile that will generate Debian packages
 for j in `seq 0 $(( i - 1 ))`
 do
-    ~/create_dockerfiles.pl $j ${tags[$j]}
+    create_dockerfiles.pl $j ${tags[$j]}
     if [ $? -ne 0 ]; then
 	exit 2;
     fi
@@ -173,8 +173,8 @@ if [ $? -ne 0 ]; then
     exit 9;
 fi
 
-~/delete_containers.sh
-~/delete_images.sh
+delete_containers.sh
+delete_images.sh
 
 echo "Started at : $start"
 echo "Ended at `date -R`"

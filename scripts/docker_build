@@ -19,8 +19,6 @@ done
 shift $(( $OPTIND - 1 ))
 OPTIND=1
 
-images="saucisson/with-minimal:testing-amd64"
-# saucisson/with-minimal:testing-i386"
 i=0
 
 eval `/usr/share/buildeb/config_parser $CONFIGFILE $MAKEFILEDIR`
